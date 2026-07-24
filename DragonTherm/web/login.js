@@ -88,7 +88,7 @@
 
                 if (url === '/api/sendSms') {
                     setTimeout(function () {
-                        var payload = JSON.parse(data || '{}');
+                        var payload = (typeof data === 'string') ? JSON.parse(data || '{}') : (data || {});
                         if (!payload.phone || !/^1[3-9]\d{9}$/.test(payload.phone)) {
                             reject({ message: '手机号格式不正确' });
                             return;
@@ -108,7 +108,7 @@
 
                 if (url === '/api/login') {
                     setTimeout(function () {
-                        var payload = JSON.parse(data || '{}');
+                        var payload = (typeof data === 'string') ? JSON.parse(data || '{}') : (data || {});
 
                         // 演示模式：接受任意合法手机号，密码随意
                         if (payload.loginType === LOGIN_TYPE_PASSWORD) {
