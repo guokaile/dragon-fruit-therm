@@ -1,6 +1,12 @@
 (function () {
     'use strict';
 
+    // ============== 环境检测 ==============
+    // GitHub Pages 上无法运行 Java 后端，自动切换为演示模式
+    var isProduction = window.location.hostname !== 'localhost'
+                    && window.location.hostname !== '127.0.0.1';
+    console.log('当前环境:', isProduction ? '演示模式 (GitHub Pages)' : '本地模式 (Java后端)');
+
     // ============== 登录类型常量 ==============
     var LOGIN_TYPE_PASSWORD = 3;   // 账号密码登录
     var LOGIN_TYPE_SMS = 1;        // 手机号验证码登录
@@ -72,9 +78,92 @@
         }
     }
 
-    // 发送 HTTP 请求
+    // 发送 HTTP 请求（演示模式下自动模拟）
     function request(url, method, data) {
         return new Promise(function (resolve, reject) {
+            // ===== 演示模式：模拟后端响应 =====
+            if (isProduction) {
+                // 模拟网络延迟
+                var delay = 500 + Math.random() * 800;
+
+                if (url === '/api/sendSms') {
+                    setTimeout(function () {
+                        var payload = JSON.parse(data || '{}');
+                        if (!payload.phone || !/^1[3-9]\d{9}$/.test(payload.phone)) {
+                            reject({ message: '手机号格式不正确' });
+                            return;
+                        }
+                        // 生成6位模拟验证码
+                        var mockCode = String(Math.floor(100000 + Math.random() * 900000));
+                        console.log('📱 模拟验证码（演示模式）:', mockCode);
+                        resolve({
+                            success: true,
+                            code: 200,
+                            message: '验证码已发送（演示模式）',
+                            data: mockCode
+                        });
+                    }, delay);
+                    return;
+                }
+
+                if (url === '/api/login') {
+                    setTimeout(function () {
+                        var payload = JSON.parse(data || '{}');
+
+                        // 演示模式：接受任意合法手机号，密码随意
+                        if (payload.loginType === LOGIN_TYPE_PASSWORD) {
+                            if (!payload.phone || !payload.password) {
+                                reject({ message: '手机号和密码不能为空' });
+                                return;
+                            }
+                            if (!/^1[3-9]\d{9}$/.test(payload.phone)) {
+                                reject({ message: '手机号格式不正确' });
+                                return;
+                            }
+                        }
+
+                        // 短信登录：验证码不为空即可
+                        if (payload.loginType === LOGIN_TYPE_SMS) {
+                            if (!payload.smsCode) {
+                                reject({ message: '验证码不能为空' });
+                                return;
+                            }
+                        }
+
+                        // 微信登录：任意输入即可
+                        if (payload.loginType === LOGIN_TYPE_WECHAT) {
+                            if (!payload.wechatCode && !payload.wechatOpenId) {
+                                reject({ message: '请输入微信授权信息' });
+                                return;
+                            }
+                        }
+
+                        console.log('✅ 模拟登录成功（演示模式）');
+                        resolve({
+                            success: true,
+                            code: 200,
+                            message: '登录成功（演示模式）',
+                            accessToken: 'demo_token_' + Date.now(),
+                            expiresIn: 7200,
+                            userInfo: {
+                                userId: 'demo_user_001',
+                                phone: payload.phone || '135****9966',
+                                nickname: '演示用户',
+                                avatarUrl: ''
+                            }
+                        });
+                    }, delay);
+                    return;
+                }
+
+                // 未知接口
+                setTimeout(function () {
+                    reject({ message: '演示模式不支持该接口' });
+                }, 100);
+                return;
+            }
+
+            // ===== 本地模式：真实请求 Java 后端 =====
             try {
                 var xhr = new XMLHttpRequest();
                 xhr.open(method || 'POST', url, true);
