@@ -12,6 +12,35 @@
     var LOGIN_TYPE_SMS = 1;        // 手机号验证码登录
     var LOGIN_TYPE_WECHAT = 2;     // 微信登录
 
+    // ============== 演示模式模拟用户数据（与后端 LoginService 一致） ==============
+    var MOCK_USERS = {
+        '13546069966': {
+            userId: 'U001',
+            phone: '13546069966',
+            password: '123456',
+            nickname: '火龙果用户一',
+            avatarUrl: ''
+        },
+        '13935193040': {
+            userId: 'U002',
+            phone: '13935193040',
+            password: '654321',
+            nickname: '火龙果用户二',
+            avatarUrl: ''
+        }
+    };
+    // 微信用户
+    var MOCK_WECHAT_USERS = {
+        'oABC123DEF456': {
+            userId: 'W001',
+            wechatOpenId: 'oABC123DEF456',
+            nickname: '微信用户',
+            avatarUrl: 'https://example.com/avatar.jpg'
+        }
+    };
+    // 演示模式下暂存已发送的短信验证码
+    var MOCK_SMS_CODES = {};
+
     // ============== DOM 元素 ==============
     var $tabBtns = document.querySelectorAll('.tab-btn');
     var $tabContents = document.querySelectorAll('.tab-content');
@@ -95,6 +124,8 @@
                         }
                         // 生成6位模拟验证码
                         var mockCode = String(Math.floor(100000 + Math.random() * 900000));
+                        // 存储验证码，用于后续登录校验
+                        MOCK_SMS_CODES[payload.phone] = mockCode;
                         console.log('📱 模拟验证码（演示模式）:', mockCode);
                         resolve({
                             success: true,
@@ -109,8 +140,9 @@
                 if (url === '/api/login') {
                     setTimeout(function () {
                         var payload = (typeof data === 'string') ? JSON.parse(data || '{}') : (data || {});
+                        var user = null;
 
-                        // 演示模式：接受任意合法手机号，密码随意
+                        // ===== 账号密码登录 =====
                         if (payload.loginType === LOGIN_TYPE_PASSWORD) {
                             if (!payload.phone || !payload.password) {
                                 reject({ message: '手机号和密码不能为空' });
@@ -120,36 +152,98 @@
                                 reject({ message: '手机号格式不正确' });
                                 return;
                             }
+                            user = MOCK_USERS[payload.phone];
+                            if (!user) {
+                                reject({ message: '用户不存在' });
+                                return;
+                            }
+                            if (user.password !== payload.password) {
+                                reject({ message: '密码错误' });
+                                return;
+                            }
                         }
 
-                        // 短信登录：验证码不为空即可
+                        // ===== 短信验证码登录 =====
                         if (payload.loginType === LOGIN_TYPE_SMS) {
+                            if (!payload.phone) {
+                                reject({ message: '手机号不能为空' });
+                                return;
+                            }
+                            if (!/^1[3-9]\d{9}$/.test(payload.phone)) {
+                                reject({ message: '手机号格式不正确' });
+                                return;
+                            }
                             if (!payload.smsCode) {
                                 reject({ message: '验证码不能为空' });
                                 return;
                             }
-                        }
-
-                        // 微信登录：任意输入即可
-                        if (payload.loginType === LOGIN_TYPE_WECHAT) {
-                            if (!payload.wechatCode && !payload.wechatOpenId) {
-                                reject({ message: '请输入微信授权信息' });
+                            // 校验验证码
+                            var sentCode = MOCK_SMS_CODES[payload.phone];
+                            if (!sentCode) {
+                                reject({ message: '请先获取验证码' });
                                 return;
+                            }
+                            if (sentCode !== payload.smsCode) {
+                                reject({ message: '验证码错误' });
+                                return;
+                            }
+                            // 验证码用完后清除
+                            delete MOCK_SMS_CODES[payload.phone];
+                            // 短信登录：用户不存在则自动注册
+                            user = MOCK_USERS[payload.phone];
+                            if (!user) {
+                                user = {
+                                    userId: 'U' + Date.now(),
+                                    phone: payload.phone,
+                                    password: '',
+                                    nickname: '用户' + payload.phone.slice(-4),
+                                    avatarUrl: ''
+                                };
+                                MOCK_USERS[payload.phone] = user;
                             }
                         }
 
-                        console.log('✅ 模拟登录成功（演示模式）');
+                        // ===== 微信登录 =====
+                        if (payload.loginType === LOGIN_TYPE_WECHAT) {
+                            var wechatId = payload.wechatOpenId || payload.wechatCode || '';
+                            if (!wechatId) {
+                                reject({ message: '请输入微信授权信息' });
+                                return;
+                            }
+                            // 查找微信用户
+                            user = MOCK_WECHAT_USERS[wechatId];
+                            if (!user) {
+                                // 查找 WECHAT_ 前缀的key
+                                var wechatKey = 'WECHAT_' + wechatId;
+                                if (MOCK_USERS[wechatKey]) {
+                                    user = MOCK_USERS[wechatKey];
+                                }
+                            }
+                            if (!user) {
+                                // 微信用户不存在则自动注册
+                                user = {
+                                    userId: 'W' + Date.now(),
+                                    wechatOpenId: wechatId,
+                                    nickname: '微信用户' + wechatId.slice(-4),
+                                    avatarUrl: ''
+                                };
+                                MOCK_WECHAT_USERS[wechatId] = user;
+                            }
+                        }
+
+                        // ===== 登录成功 =====
+                        console.log('✅ 登录成功（演示模式）', user.nickname);
                         resolve({
                             success: true,
                             code: 200,
-                            message: '登录成功（演示模式）',
+                            message: '登录成功',
                             accessToken: 'demo_token_' + Date.now(),
                             expiresIn: 7200,
                             userInfo: {
-                                userId: 'demo_user_001',
-                                phone: payload.phone || '135****9966',
-                                nickname: '演示用户',
-                                avatarUrl: ''
+                                userId: user.userId,
+                                phone: user.phone || payload.phone || '',
+                                nickname: user.nickname || '用户',
+                                avatarUrl: user.avatarUrl || ''
                             }
                         });
                     }, delay);
