@@ -695,13 +695,25 @@
     // 统一处理表单提交 - 根据按钮的 data-tab 决定当前登录方式
     $loginForm.addEventListener('submit', function (e) {
         e.preventDefault();
-        // 如果触发 submit 的按钮带有 data-tab，则切换到该 tab
-        if (e.submitter && e.submitter.getAttribute('data-tab')) {
-            var targetTab = e.submitter.getAttribute('data-tab');
-            if (activeTab !== targetTab) {
+
+        // 获取触发提交的按钮（兼容不支持 e.submitter 的旧浏览器）
+        var submitBtn = e.submitter;
+        if (!submitBtn) {
+            // 回退方案：根据当前激活的 tab 找到对应的提交按钮
+            var activeContent = document.querySelector('.tab-content.active');
+            if (activeContent) {
+                submitBtn = activeContent.querySelector('button[type="submit"]');
+            }
+        }
+
+        // 如果按钮带有 data-tab，切换到对应 tab
+        if (submitBtn) {
+            var targetTab = submitBtn.getAttribute('data-tab');
+            if (targetTab && activeTab !== targetTab) {
                 switchTab(targetTab);
             }
         }
+
         doLogin();
     });
 

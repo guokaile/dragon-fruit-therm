@@ -116,11 +116,18 @@ body {
     border-radius: 12px;
     padding: 4px;
     margin-bottom: 28px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.login-tabs::-webkit-scrollbar {
+    display: none;
 }
 
 .tab-btn {
-    flex: 1;
-    padding: 10px 0;
+    flex: 1 0 auto;
+    padding: 10px 14px;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -129,6 +136,7 @@ body {
     border-radius: 10px;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .tab-btn:hover {
@@ -466,5 +474,10 @@ body {
     .sms-btn {
         min-width: 96px;
         font-size: 13px;
+    }
+
+    .tab-btn {
+        font-size: 13px;
+        padding: 10px 12px;
     }
 }
