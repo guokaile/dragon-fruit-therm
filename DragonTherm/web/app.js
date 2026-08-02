@@ -938,6 +938,336 @@ function initPredictionUpdate() {
 window.addEventListener('DOMContentLoaded', function() {
     console.log('[智控温联] 开始初始化...');
 
+    // ==================== 0. 登录态与权限检查 ====================
+    var isProduction = window.location.hostname !== 'localhost'
+                    && window.location.hostname !== '127.0.0.1';
+    console.log('[智控温联] 当前环境:', isProduction ? '演示模式' : '本地模式');
+
+    var loginData = null;
+    var currentUser = null;
+    var isAdmin = false;
+    var authToken = null;
+
+    try {
+        var saved = localStorage.getItem('dragon_therm_login');
+        if (saved) {
+            loginData = JSON.parse(saved);
+            // 检查token是否过期
+            if (loginData.expiresAt && new Date().getTime() > loginData.expiresAt) {
+                console.log('[智控温联] Token已过期，跳转到登录页');
+                localStorage.removeItem('dragon_therm_login');
+                window.location.href = 'login.html';
+                return;
+            }
+            currentUser = loginData.userInfo;
+            authToken = loginData.token;
+            isAdmin = currentUser && currentUser.role === 'admin';
+            console.log('[智控温联] 当前用户:', currentUser.nickname,
+                        '角色:', currentUser.role || 'user',
+                        '管理员:', isAdmin);
+        } else if (!isProduction) {
+            // 本地模式未登录，跳转到登录页
+            console.log('[智控温联] 未登录，跳转到登录页');
+            window.location.href = 'login.html';
+            return;
+        }
+        // 演示模式未登录时允许浏览仪表盘（但不显示管理功能）
+    } catch (e) {
+        console.error('[智控温联] 读取登录信息失败:', e);
+        if (!isProduction) {
+            window.location.href = 'login.html';
+            return;
+        }
+    }
+
+    // ==================== 更新顶部用户信息 ====================
+    if (currentUser) {
+        var headerName = document.getElementById('header-username');
+        var headerAvatar = document.getElementById('header-avatar');
+        if (headerName) {
+            headerName.textContent = isAdmin ? '管理员 · ' + currentUser.nickname : currentUser.nickname;
+        }
+        if (headerAvatar) {
+            headerAvatar.textContent = (currentUser.nickname || '用').charAt(0);
+        }
+    }
+
+    // ==================== 侧边栏角色控制 ====================
+    var usersMenuItem = document.querySelector('a[href="#users"]');
+    var usersMenuLi = usersMenuItem ? usersMenuItem.parentElement : null;
+    if (!isAdmin && usersMenuLi) {
+        // 非管理员隐藏"用户管理"菜单
+        usersMenuLi.style.display = 'none';
+        console.log('[智控温联] 非管理员，隐藏用户管理菜单');
+    }
+
+    // ==================== Admin API 工具函数 ====================
+
+    function adminRequest(url, method, data) {
+        return new Promise(function(resolve, reject) {
+            if (isProduction) {
+                // ===== 演示模式：模拟管理员API =====
+                var delay = 300 + Math.random() * 500;
+
+                if (url === '/api/admin/users' && method === 'GET') {
+                    setTimeout(function() {
+                        // 从MOCK数据构建用户列表（复用login.js的数据结构需要重建）
+                        // 这里使用一个简单的内联模拟
+                        var mockUsers = [
+                            {userId:'U001',phone:'13546069966',password:'123456',nickname:'火龙果用户一',role:'admin',createTime:1720000000000},
+                            {userId:'U002',phone:'13935193040',password:'654321',nickname:'火龙果用户二',role:'user',createTime:1720000000000}
+                        ];
+                        // 从localStorage读取演示模式下注册的新用户
+                        try {
+                            var stored = localStorage.getItem('dragon_therm_demo_users');
+                            if (stored) {
+                                var extraUsers = JSON.parse(stored);
+                                mockUsers = mockUsers.concat(extraUsers);
+                            }
+                        } catch(e) {}
+                        resolve({code:200, success:true, data: mockUsers});
+                    }, delay);
+                    return;
+                }
+
+                if (url === '/api/admin/users' && method === 'DELETE') {
+                    setTimeout(function() {
+                        var payload = (typeof data === 'string') ? JSON.parse(data || '{}') : (data || {});
+                        if (!payload.phone) {
+                            reject({message: '请指定要删除的用户手机号'});
+                            return;
+                        }
+                        if (payload.phone === '13546069966') {
+                            reject({message: '不能删除自己的账号'});
+                            return;
+                        }
+                        // 模拟删除：从localStorage中移除
+                        try {
+                            var stored = localStorage.getItem('dragon_therm_demo_users');
+                            var extraUsers = stored ? JSON.parse(stored) : [];
+                            extraUsers = extraUsers.filter(function(u) { return u.phone !== payload.phone; });
+                            localStorage.setItem('dragon_therm_demo_users', JSON.stringify(extraUsers));
+                        } catch(e) {}
+                        resolve({code:200, success:true, message: '用户已删除'});
+                    }, delay);
+                    return;
+                }
+
+                setTimeout(function() {
+                    reject({message: '演示模式不支持该接口'});
+                }, 100);
+                return;
+            }
+
+            // ===== 本地模式：真实请求Java后端 =====
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open(method || 'GET', url, true);
+                xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
+                if (authToken) {
+                    xhr.setRequestHeader('Authorization', 'Bearer ' + authToken);
+                }
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        try {
+                            var result = JSON.parse(xhr.responseText);
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                resolve(result);
+                            } else {
+                                reject(result || {message: '请求失败'});
+                            }
+                        } catch (err) {
+                            reject({message: '服务器响应异常'});
+                        }
+                    }
+                };
+                xhr.onerror = function() { reject({message: '网络连接失败'}); };
+                xhr.timeout = 15000;
+                xhr.ontimeout = function() { reject({message: '请求超时'}); };
+                xhr.send(data ? JSON.stringify(data) : null);
+            } catch (err) {
+                reject({message: '请求出错: ' + err.message});
+            }
+        });
+    }
+
+    // ==================== 管理员面板功能 ====================
+
+    function showAdminPanel() {
+        var dashboard = document.getElementById('dashboard-content');
+        var adminPanel = document.getElementById('admin-panel');
+        var otherContent = document.getElementById('other-content');
+        var tagCloud = document.getElementById('tag-cloud-container');
+        if (tagCloud) tagCloud.style.display = 'none';
+        if (dashboard) dashboard.classList.add('hidden');
+        if (otherContent) otherContent.classList.add('hidden');
+        if (adminPanel) adminPanel.classList.remove('hidden');
+        loadUserList();
+    }
+
+    function hideAdminPanel() {
+        var dashboard = document.getElementById('dashboard-content');
+        var adminPanel = document.getElementById('admin-panel');
+        var tagCloud = document.getElementById('tag-cloud-container');
+        if (adminPanel) adminPanel.classList.add('hidden');
+        if (dashboard) dashboard.classList.remove('hidden');
+        // tagCloud has its own show/hide logic
+    }
+
+    function loadUserList() {
+        var table = document.getElementById('users-table');
+        var tbody = document.getElementById('users-tbody');
+        var loading = document.getElementById('users-loading');
+        var errorDiv = document.getElementById('users-error');
+        var errorMsg = document.getElementById('users-error-msg');
+        var countSpan = document.getElementById('user-count');
+
+        if (loading) loading.classList.remove('hidden');
+        if (table) table.classList.add('hidden');
+        if (errorDiv) errorDiv.classList.add('hidden');
+
+        adminRequest('/api/admin/users', 'GET')
+            .then(function(res) {
+                if (loading) loading.classList.add('hidden');
+                if (!res || !res.data) {
+                    showError('获取用户列表失败');
+                    return;
+                }
+                var users = res.data;
+                if (countSpan) countSpan.textContent = users.length;
+                if (tbody) {
+                    tbody.innerHTML = '';
+                    users.forEach(function(user) {
+                        var row = document.createElement('tr');
+                        row.className = 'border-b border-gray-700 hover:bg-secondary hover:bg-opacity-50 transition-colors';
+
+                        var roleBadge = user.role === 'admin'
+                            ? '<span class="px-2 py-0.5 bg-red-900 bg-opacity-30 text-red-400 rounded text-xs">管理员</span>'
+                            : '<span class="px-2 py-0.5 bg-blue-900 bg-opacity-30 text-blue-400 rounded text-xs">普通用户</span>';
+
+                        var createDate = user.createTime
+                            ? new Date(user.createTime).toLocaleDateString('zh-CN')
+                            : '-';
+
+                        // 删除按钮：不能删自己，不能删其他admin
+                        var canDelete = true;
+                        var deleteTitle = '';
+                        if (currentUser && user.userId === currentUser.userId) {
+                            canDelete = false;
+                            deleteTitle = '不能删除自己';
+                        } else if (user.role === 'admin') {
+                            canDelete = false;
+                            deleteTitle = '不能删除管理员';
+                        }
+
+                        var deleteBtn = canDelete
+                            ? '<button class="delete-user-btn px-3 py-1 bg-red-600 bg-opacity-20 border border-red-600 rounded text-red-400 text-xs hover:bg-red-600 hover:text-white transition-all" data-phone="' + (user.phone || '') + '">删除</button>'
+                            : '<button class="px-3 py-1 bg-gray-700 bg-opacity-50 border border-gray-600 rounded text-gray-500 text-xs cursor-not-allowed" disabled title="' + deleteTitle + '">删除</button>';
+
+                        row.innerHTML =
+                            '<td class="py-3 px-4 text-gray-300 font-mono text-xs">' + (user.userId || '-') + '</td>' +
+                            '<td class="py-3 px-4 text-white">' + (user.phone || '-') + '</td>' +
+                            '<td class="py-3 px-4 text-gray-300 font-mono text-xs">' + (user.password || '-') + '</td>' +
+                            '<td class="py-3 px-4 text-white">' + (user.nickname || '-') + '</td>' +
+                            '<td class="py-3 px-4">' + roleBadge + '</td>' +
+                            '<td class="py-3 px-4 text-gray-400 text-xs">' + createDate + '</td>' +
+                            '<td class="py-3 px-4 text-right">' + deleteBtn + '</td>';
+                        tbody.appendChild(row);
+                    });
+
+                    // 绑定删除按钮事件
+                    tbody.querySelectorAll('.delete-user-btn').forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            var phone = btn.getAttribute('data-phone');
+                            if (phone) {
+                                deleteUser(phone);
+                            }
+                        });
+                    });
+                }
+                if (table) table.classList.remove('hidden');
+            })
+            .catch(function(err) {
+                if (loading) loading.classList.add('hidden');
+                showError(err.message || '加载用户列表失败');
+            });
+
+        function showError(msg) {
+            if (errorDiv) errorDiv.classList.remove('hidden');
+            if (errorMsg) errorMsg.textContent = msg;
+        }
+    }
+
+    function deleteUser(phone) {
+        if (!confirm('确定要删除用户 ' + phone + ' 吗？\n\n删除后该用户将无法登录。')) {
+            return;
+        }
+
+        adminRequest('/api/admin/users', 'DELETE', {phone: phone})
+            .then(function(res) {
+                alert(res.message || '删除成功');
+                loadUserList(); // 刷新列表
+            })
+            .catch(function(err) {
+                alert('删除失败: ' + (err.message || '未知错误'));
+            });
+    }
+
+    // 管理员入口：侧边栏"用户管理"点击事件
+    if (usersMenuItem) {
+        usersMenuItem.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (isAdmin) {
+                showAdminPanel();
+                // 更新侧边栏激活状态
+                document.querySelectorAll('.dashboard-nav-item').forEach(function(item) {
+                    item.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary', 'border-l-2', 'border-primary');
+                    item.classList.add('text-gray-400', 'border-l-2', 'border-transparent');
+                });
+                usersMenuItem.classList.add('bg-primary', 'bg-opacity-10', 'text-primary', 'border-l-2', 'border-primary');
+                usersMenuItem.classList.remove('text-gray-400', 'border-transparent');
+            }
+        });
+    }
+
+    // 返回仪表盘按钮
+    var backBtn = document.getElementById('back-to-dashboard-btn');
+    if (backBtn) {
+        backBtn.addEventListener('click', function() {
+            hideAdminPanel();
+            // 恢复仪表盘菜单激活状态
+            document.querySelectorAll('.dashboard-nav-item').forEach(function(item) {
+                item.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary', 'border-l-2', 'border-primary');
+                item.classList.add('text-gray-400', 'border-l-2', 'border-transparent');
+            });
+            var dashItem = document.querySelector('a[href="#dashboard"]');
+            if (dashItem) {
+                dashItem.classList.add('bg-primary', 'bg-opacity-10', 'text-primary', 'border-l-2', 'border-primary');
+                dashItem.classList.remove('text-gray-400', 'border-transparent');
+            }
+        });
+    }
+
+    // 刷新按钮
+    var refreshBtn = document.getElementById('refresh-users-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            loadUserList();
+        });
+    }
+
+    // 确保退出登录时清除token
+    var logoutBtn = document.getElementById('logout-button');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.removeItem('dragon_therm_login');
+            window.location.href = 'login.html';
+        });
+    }
+
+    console.log('[智控温联] 权限检查完成, isAdmin:', isAdmin);
+
     try {
         // 1. 初始化3D标签云
         tagCloudSkip = new TagCloud3D('tag-cloud-canvas', 'tag-cloud-container');

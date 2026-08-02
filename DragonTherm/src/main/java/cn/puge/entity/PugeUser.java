@@ -50,6 +50,11 @@ public class PugeUser {
     private Long updateTime;
 
     /**
+     * 用户角色（admin=管理员, user=普通用户）
+     */
+    private String role;
+
+    /**
      * 默认构造器
      */
     public PugeUser() {
@@ -66,13 +71,14 @@ public class PugeUser {
      * @param avatarUrl    头像URL
      */
     public PugeUser(String userId, String phone, String password, String wechatOpenId,
-                    String nickname, String avatarUrl) {
+                    String nickname, String avatarUrl, String role) {
         this.userId = userId;
         this.phone = phone;
         this.password = password;
         this.wechatOpenId = wechatOpenId;
         this.nickname = nickname;
         this.avatarUrl = avatarUrl;
+        this.role = role;
         this.createTime = System.currentTimeMillis();
         this.updateTime = System.currentTimeMillis();
     }
@@ -143,12 +149,21 @@ public class PugeUser {
         this.updateTime = updateTime;
     }
 
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
     @Override
     public String toString() {
         return "PugeUser{" +
                 "userId='" + userId + '\'' +
                 ", phone='" + phone + '\'' +
                 ", nickname='" + nickname + '\'' +
+                ", role='" + role + '\'' +
                 ", wechatOpenId='" + wechatOpenId + '\'' +
                 ", createTime=" + createTime +
                 '}';

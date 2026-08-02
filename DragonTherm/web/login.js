@@ -19,6 +19,7 @@
             phone: '13546069966',
             password: '123456',
             nickname: '火龙果用户一',
+            role: 'admin',
             avatarUrl: ''
         },
         '13935193040': {
@@ -26,6 +27,7 @@
             phone: '13935193040',
             password: '654321',
             nickname: '火龙果用户二',
+            role: 'user',
             avatarUrl: ''
         }
     };
@@ -35,6 +37,7 @@
             userId: 'W001',
             wechatOpenId: 'oABC123DEF456',
             nickname: '微信用户',
+            role: 'user',
             avatarUrl: 'https://example.com/avatar.jpg'
         }
     };
@@ -58,10 +61,22 @@
 
     var $wechatCode = document.getElementById('wechatCode');
 
+    var $regPhone = document.getElementById('regPhone');
+    var $regPassword = document.getElementById('regPassword');
+    var $regTogglePwd = document.getElementById('regTogglePwd');
+    var $regConfirmPassword = document.getElementById('regConfirmPassword');
+    var $regConfirmTogglePwd = document.getElementById('regConfirmTogglePwd');
+    var $regNickname = document.getElementById('regNickname');
+
     var $phone1Error = document.getElementById('phone1Error');
     var $passwordError = document.getElementById('passwordError');
     var $phone2Error = document.getElementById('phone2Error');
     var $smsCodeError = document.getElementById('smsCodeError');
+
+    var $regPhoneError = document.getElementById('regPhoneError');
+    var $regPasswordError = document.getElementById('regPasswordError');
+    var $regConfirmPasswordError = document.getElementById('regConfirmPasswordError');
+    var $regNicknameError = document.getElementById('regNicknameError');
 
     // 当前激活的 tab
     var activeTab = 'password';
@@ -197,6 +212,7 @@
                                     phone: payload.phone,
                                     password: '',
                                     nickname: '用户' + payload.phone.slice(-4),
+                                    role: 'user',
                                     avatarUrl: ''
                                 };
                                 MOCK_USERS[payload.phone] = user;
@@ -225,6 +241,7 @@
                                     userId: 'W' + Date.now(),
                                     wechatOpenId: wechatId,
                                     nickname: '微信用户' + wechatId.slice(-4),
+                                    role: 'user',
                                     avatarUrl: ''
                                 };
                                 MOCK_WECHAT_USERS[wechatId] = user;
@@ -243,7 +260,78 @@
                                 userId: user.userId,
                                 phone: user.phone || payload.phone || '',
                                 nickname: user.nickname || '用户',
-                                avatarUrl: user.avatarUrl || ''
+                                avatarUrl: user.avatarUrl || '',
+                                role: user.role || 'user'
+                            }
+                        });
+                    }, delay);
+                    return;
+                }
+
+                // ===== 演示模式：注册接口 =====
+                if (url === '/api/register') {
+                    setTimeout(function () {
+                        var payload = (typeof data === 'string') ? JSON.parse(data || '{}') : (data || {});
+
+                        if (!payload.phone || !/^1[3-9]\d{9}$/.test(payload.phone)) {
+                            reject({ message: '请输入正确的11位手机号' });
+                            return;
+                        }
+                        if (!payload.password || !/^[a-zA-Z0-9]{6,20}$/.test(payload.password)) {
+                            reject({ message: '密码需为6-20位字母或数字' });
+                            return;
+                        }
+                        if (payload.password !== payload.confirmPassword) {
+                            reject({ message: '两次密码输入不一致' });
+                            return;
+                        }
+                        // 检查手机号是否已注册
+                        if (MOCK_USERS[payload.phone]) {
+                            reject({ message: '该手机号已注册' });
+                            return;
+                        }
+
+                        // 创建新用户
+                        var newUser = {
+                            userId: 'U' + Date.now(),
+                            phone: payload.phone,
+                            password: payload.password,
+                            nickname: payload.nickname || '用户' + payload.phone.slice(-4),
+                            role: 'user',
+                            avatarUrl: ''
+                        };
+                        MOCK_USERS[payload.phone] = newUser;
+
+                        // 持久化到localStorage供管理员面板使用
+                        try {
+                            var demoUsers = localStorage.getItem('dragon_therm_demo_users');
+                            var usersArr = demoUsers ? JSON.parse(demoUsers) : [];
+                            // 避免重复
+                            usersArr = usersArr.filter(function(u) { return u.phone !== newUser.phone; });
+                            usersArr.push({
+                                userId: newUser.userId,
+                                phone: newUser.phone,
+                                password: newUser.password,
+                                nickname: newUser.nickname,
+                                role: 'user',
+                                createTime: Date.now()
+                            });
+                            localStorage.setItem('dragon_therm_demo_users', JSON.stringify(usersArr));
+                        } catch(e) {}
+
+                        console.log('✅ 注册成功（演示模式）', newUser.nickname);
+                        resolve({
+                            success: true,
+                            code: 200,
+                            message: '注册成功',
+                            accessToken: 'demo_token_' + Date.now(),
+                            expiresIn: 7200,
+                            userInfo: {
+                                userId: newUser.userId,
+                                phone: newUser.phone,
+                                nickname: newUser.nickname,
+                                avatarUrl: newUser.avatarUrl,
+                                role: 'user'
                             }
                         });
                     }, delay);
@@ -295,7 +383,13 @@
         try {
             var loginInfo = {
                 token: data.accessToken,
-                userInfo: data.userInfo,
+                userInfo: {
+                    userId: data.userInfo.userId,
+                    phone: data.userInfo.phone,
+                    nickname: data.userInfo.nickname,
+                    avatarUrl: data.userInfo.avatarUrl || '',
+                    role: data.userInfo.role || 'user'
+                },
                 expiresAt: new Date().getTime() + (data.expiresIn || 7200) * 1000
             };
             localStorage.setItem('dragon_therm_login', JSON.stringify(loginInfo));
@@ -330,6 +424,10 @@
         setFieldError($password, $passwordError, '');
         setFieldError($phone2, $phone2Error, '');
         setFieldError($smsCode, $smsCodeError, '');
+        setFieldError($regPhone, $regPhoneError, '');
+        setFieldError($regPassword, $regPasswordError, '');
+        setFieldError($regConfirmPassword, $regConfirmPasswordError, '');
+        setFieldError($regNickname, $regNicknameError, '');
     }
 
     $tabBtns.forEach(function (btn) {
@@ -346,6 +444,24 @@
         $password.type = isPwd ? 'text' : 'password';
         $togglePwd.textContent = isPwd ? '🙈' : '👁';
     });
+
+    // 注册-密码显示/隐藏
+    if ($regTogglePwd) {
+        $regTogglePwd.addEventListener('click', function () {
+            var isPwd = $regPassword.type === 'password';
+            $regPassword.type = isPwd ? 'text' : 'password';
+            $regTogglePwd.textContent = isPwd ? '🙈' : '👁';
+        });
+    }
+
+    // 注册-确认密码显示/隐藏
+    if ($regConfirmTogglePwd) {
+        $regConfirmTogglePwd.addEventListener('click', function () {
+            var isPwd = $regConfirmPassword.type === 'password';
+            $regConfirmPassword.type = isPwd ? 'text' : 'password';
+            $regConfirmTogglePwd.textContent = isPwd ? '🙈' : '👁';
+        });
+    }
 
     // ============== 短信验证码倒计时 ==============
 
@@ -482,6 +598,64 @@
             return payload;
         }
 
+        if (activeTab === 'register') {
+            var regPhoneVal = ($regPhone.value || '').trim();
+            var regPwd = $regPassword.value;
+            var regConfirmPwd = $regConfirmPassword.value;
+            var regNick = ($regNickname.value || '').trim();
+
+            // 手机号校验
+            if (!regPhoneVal) {
+                setFieldError($regPhone, $regPhoneError, '请输入手机号');
+                $regPhone.focus();
+                return null;
+            }
+            if (!isPhoneValid(regPhoneVal)) {
+                setFieldError($regPhone, $regPhoneError, '请输入正确的11位手机号');
+                $regPhone.focus();
+                return null;
+            }
+
+            // 密码校验
+            if (!regPwd) {
+                setFieldError($regPassword, $regPasswordError, '请输入密码');
+                $regPassword.focus();
+                return null;
+            }
+            if (!/^[a-zA-Z0-9]{6,20}$/.test(regPwd)) {
+                setFieldError($regPassword, $regPasswordError, '密码需为6-20位字母或数字');
+                $regPassword.focus();
+                return null;
+            }
+
+            // 确认密码校验
+            if (!regConfirmPwd) {
+                setFieldError($regConfirmPassword, $regConfirmPasswordError, '请确认密码');
+                $regConfirmPassword.focus();
+                return null;
+            }
+            if (regPwd !== regConfirmPwd) {
+                setFieldError($regConfirmPassword, $regConfirmPasswordError, '两次密码输入不一致');
+                $regConfirmPassword.focus();
+                return null;
+            }
+
+            // 昵称校验（可选）
+            if (regNick && regNick.length > 20) {
+                setFieldError($regNickname, $regNicknameError, '昵称不能超过20个字符');
+                $regNickname.focus();
+                return null;
+            }
+
+            payload.phone = regPhoneVal;
+            payload.password = regPwd;
+            payload.confirmPassword = regConfirmPwd;
+            if (regNick) {
+                payload.nickname = regNick;
+            }
+            return payload;
+        }
+
         return null;
     }
 
@@ -493,13 +667,17 @@
 
         showLoading(true);
 
-        request('/api/login', 'POST', payload)
+        // 注册走注册接口，登录走登录接口
+        var apiUrl = (activeTab === 'register') ? '/api/register' : '/api/login';
+
+        request(apiUrl, 'POST', payload)
             .then(function (res) {
                 showLoading(false);
                 if (res.success) {
                     saveLogin(res);
                     var nickname = (res.userInfo && res.userInfo.nickname) || '用户';
-                    showToast('登录成功，欢迎 ' + nickname, 'success', 3000);
+                    var successMsg = (activeTab === 'register') ? '注册成功，欢迎 ' + nickname : '登录成功，欢迎 ' + nickname;
+                    showToast(successMsg, 'success', 3000);
                     // 1.5秒后跳转到主页
                     setTimeout(function() {
                         window.location.href = 'index.html';
@@ -548,7 +726,7 @@
     });
 
     // 手机号输入 - 仅允许数字字符
-    [$phone1, $phone2].forEach(function (el) {
+    [$phone1, $phone2, $regPhone].forEach(function (el) {
         el.addEventListener('input', function () {
             var cleaned = el.value.replace(/[^\d]/g, '');
             if (cleaned !== el.value) {
@@ -564,6 +742,28 @@
             $smsCode.value = cleaned;
         }
     });
+
+    // 注册字段输入时清除错误提示
+    if ($regPhone) {
+        $regPhone.addEventListener('input', function () {
+            setFieldError($regPhone, $regPhoneError, '');
+        });
+    }
+    if ($regPassword) {
+        $regPassword.addEventListener('input', function () {
+            setFieldError($regPassword, $regPasswordError, '');
+        });
+    }
+    if ($regConfirmPassword) {
+        $regConfirmPassword.addEventListener('input', function () {
+            setFieldError($regConfirmPassword, $regConfirmPasswordError, '');
+        });
+    }
+    if ($regNickname) {
+        $regNickname.addEventListener('input', function () {
+            setFieldError($regNickname, $regNicknameError, '');
+        });
+    }
 
     // ============== 页面初始化 ==============
 

@@ -1,6 +1,8 @@
 package cn.puge.service;
 
+import cn.puge.entity.PugeUser;
 import cn.puge.request.LoginRequest;
+import cn.puge.request.RegisterRequest;
 import cn.puge.response.LoginResponse;
 
 import java.io.*;
@@ -19,6 +21,7 @@ import java.util.Map;
  *   GET  /login.html    -> 返回登录页面
  *   POST /api/sendSms   -> 发送短信验证码 (参数: phone)
  *   POST /api/login     -> 登录接口
+ *   POST /api/register  -> 注册接口 (参数: phone, password, confirmPassword, nickname)
  *
  * @author GuoKaiLe
  * @since 1.0
@@ -156,6 +159,24 @@ public class HttpServer {
                     }
                     break;
 
+                case "/api/register":
+                    if ("POST".equals(method)) {
+                        handleRegister(exchange);
+                    } else {
+                        writeResponse(exchange, 405, "{\"code\":405,\"message\":\"方法不允许\"}");
+                    }
+                    break;
+
+                case "/api/admin/users":
+                    if ("GET".equals(method)) {
+                        handleAdminListUsers(exchange);
+                    } else if ("DELETE".equals(method)) {
+                        handleAdminDeleteUser(exchange);
+                    } else {
+                        writeResponse(exchange, 405, "{\"code\":405,\"message\":\"方法不允许\"}");
+                    }
+                    break;
+
                 case "/":
                 case "/login.html":
                     if ("GET".equals(method)) {
@@ -270,6 +291,179 @@ public class HttpServer {
 
 // 转换为JSON字符串
         writeResponse(exchange, 200, toJson(response));
+    }
+
+    /**
+     * 处理注册请求
+     */
+    private static void handleRegister(com.sun.net.httpserver.HttpExchange exchange)
+            throws IOException {
+        String body = readRequestBody(exchange);
+
+        // 解析参数
+        String phone = null;
+        String password = null;
+        String confirmPassword = null;
+        String nickname = null;
+
+        if (body.startsWith("{")) {
+            phone = extractJsonField(body, "phone");
+            password = extractJsonField(body, "password");
+            confirmPassword = extractJsonField(body, "confirmPassword");
+            nickname = extractJsonField(body, "nickname");
+        } else {
+            Map<String, String> params = parseFormBody(body);
+            phone = params.get("phone");
+            password = params.get("password");
+            confirmPassword = params.get("confirmPassword");
+            nickname = params.get("nickname");
+        }
+
+        // 构造注册请求
+        RegisterRequest request = new RegisterRequest();
+        request.setPhone(phone);
+        request.setPassword(password);
+        request.setConfirmPassword(confirmPassword);
+        request.setNickname(nickname);
+        request.setClientIp(exchange.getRemoteAddress().getAddress().getHostAddress());
+
+        // 调用业务服务
+        LoginResponse response = loginService.register(request);
+
+        // 转换为JSON字符串
+        writeResponse(exchange, 200, toJson(response));
+    }
+
+    // ==================== 鉴权工具方法 ====================
+
+    /**
+     * 从请求头中提取Bearer Token
+     *
+     * @param exchange HTTP交换对象
+     * @return token字符串，不存在返回null
+     */
+    private static String extractToken(com.sun.net.httpserver.HttpExchange exchange) {
+        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7).trim();
+        }
+        return null;
+    }
+
+    /**
+     * 管理员鉴权检查
+     * 校验失败时直接写响应并返回null
+     *
+     * @param exchange HTTP交换对象
+     * @return 管理员用户信息，鉴权失败返回null（已写入错误响应）
+     */
+    private static PugeUser authenticateAdmin(
+            com.sun.net.httpserver.HttpExchange exchange) throws IOException {
+        String token = extractToken(exchange);
+        if (token == null || token.isEmpty()) {
+            writeResponse(exchange, 401,
+                    "{\"code\":401,\"success\":false,\"message\":\"未登录，请先登录\"}");
+            return null;
+        }
+
+        PugeUser user = loginService.getUserByToken(token);
+        if (user == null) {
+            writeResponse(exchange, 401,
+                    "{\"code\":401,\"success\":false,\"message\":\"令牌无效或已过期\"}");
+            return null;
+        }
+
+        if (!"admin".equals(user.getRole())) {
+            writeResponse(exchange, 403,
+                    "{\"code\":403,\"success\":false,\"message\":\"无管理员权限\"}");
+            return null;
+        }
+
+        return user;
+    }
+
+    // ==================== Admin API 处理器 ====================
+
+    /**
+     * 处理管理员用户列表请求
+     * GET /api/admin/users
+     */
+    private static void handleAdminListUsers(
+            com.sun.net.httpserver.HttpExchange exchange) throws IOException {
+        // 鉴权
+        PugeUser admin = authenticateAdmin(exchange);
+        if (admin == null) {
+            return; // authenticateAdmin 已写入错误响应
+        }
+
+        // 获取所有用户
+        java.util.Collection<PugeUser> users = loginService.getAllUsers();
+
+        // 手动构建 JSON 数组
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"code\":200,\"success\":true,\"message\":\"获取成功\",\"data\":[");
+        boolean first = true;
+        for (PugeUser user : users) {
+            if (!first) {
+                sb.append(",");
+            }
+            first = false;
+            sb.append("{");
+            sb.append("\"userId\":\"").append(escapeJson(user.getUserId())).append("\",");
+            sb.append("\"phone\":\"").append(escapeJson(user.getPhone())).append("\",");
+            sb.append("\"password\":\"").append(escapeJson(user.getPassword())).append("\",");
+            sb.append("\"nickname\":\"").append(escapeJson(user.getNickname())).append("\",");
+            sb.append("\"role\":\"").append(escapeJson(user.getRole())).append("\",");
+            sb.append("\"createTime\":").append(user.getCreateTime());
+            String wechatOpenId = user.getWechatOpenId();
+            if (wechatOpenId != null && !wechatOpenId.isEmpty()) {
+                sb.append(",\"wechatOpenId\":\"").append(escapeJson(wechatOpenId)).append("\"");
+            }
+            sb.append("}");
+        }
+        sb.append("]}");
+
+        writeResponse(exchange, 200, sb.toString());
+    }
+
+    /**
+     * 处理管理员删除用户请求
+     * DELETE /api/admin/users
+     */
+    private static void handleAdminDeleteUser(
+            com.sun.net.httpserver.HttpExchange exchange) throws IOException {
+        // 鉴权
+        PugeUser admin = authenticateAdmin(exchange);
+        if (admin == null) {
+            return; // authenticateAdmin 已写入错误响应
+        }
+
+        // 解析请求体获取要删除的手机号
+        String body = readRequestBody(exchange);
+        String phone = null;
+        if (body.startsWith("{")) {
+            phone = extractJsonField(body, "phone");
+        } else {
+            Map<String, String> params = parseFormBody(body);
+            phone = params.get("phone");
+        }
+
+        if (phone == null || phone.trim().isEmpty()) {
+            writeResponse(exchange, 200,
+                    "{\"code\":400,\"success\":false,\"message\":\"请指定要删除的用户手机号\"}");
+            return;
+        }
+
+        try {
+            String result = loginService.deleteUser(
+                    extractToken(exchange), phone.trim());
+            writeResponse(exchange, 200,
+                    "{\"code\":200,\"success\":true,\"message\":\"" + escapeJson(result) + "\"}");
+        } catch (IllegalArgumentException e) {
+            writeResponse(exchange, 200,
+                    "{\"code\":400,\"success\":false,\"message\":\""
+                            + escapeJson(e.getMessage()) + "\"}");
+        }
     }
 
     /**
@@ -455,7 +649,8 @@ public class HttpServer {
             sb.append("\"userId\":\"").append(escapeJson(userInfo.getUserId())).append("\",");
             sb.append("\"phone\":\"").append(escapeJson(userInfo.getPhone())).append("\",");
             sb.append("\"nickname\":\"").append(escapeJson(userInfo.getNickname())).append("\",");
-            sb.append("\"avatarUrl\":\"").append(escapeJson(userInfo.getAvatarUrl())).append("\"");
+            sb.append("\"avatarUrl\":\"").append(escapeJson(userInfo.getAvatarUrl())).append("\",");
+            sb.append("\"role\":\"").append(escapeJson(userInfo.getRole())).append("\"");
             sb.append("}");
         }
 

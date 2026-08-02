@@ -70,6 +70,11 @@ public class LoginResponse {
          */
         private String avatarUrl;
 
+        /**
+         * 用户角色（admin=管理员, user=普通用户）
+         */
+        private String role;
+
         public UserInfo() {
         }
 
@@ -79,6 +84,7 @@ public class LoginResponse {
                 this.phone = user.getPhone();
                 this.nickname = user.getNickname();
                 this.avatarUrl = user.getAvatarUrl();
+                this.role = user.getRole();
             }
         }
 
@@ -113,6 +119,14 @@ public class LoginResponse {
         public void setAvatarUrl(String avatarUrl) {
             this.avatarUrl = avatarUrl;
         }
+
+        public String getRole() {
+            return role;
+        }
+
+        public void setRole(String role) {
+            this.role = role;
+        }
     }
 
     // ==================== 静态工厂方法 ====================
@@ -128,9 +142,17 @@ public class LoginResponse {
      */
     public static LoginResponse success(PugeUser user, String accessToken,
                                         String refreshToken, Long expiresIn) {
+        return success(user, accessToken, refreshToken, expiresIn, "登录成功");
+    }
+
+    /**
+     * 创建成功响应（支持自定义消息，如注册成功）
+     */
+    public static LoginResponse success(PugeUser user, String accessToken,
+                                        String refreshToken, Long expiresIn, String message) {
         LoginResponse response = new LoginResponse();
         response.setCode(200);
-        response.setMessage("登录成功");
+        response.setMessage(message);
         response.setSuccess(true);
         response.setAccessToken(accessToken);
         response.setRefreshToken(refreshToken);

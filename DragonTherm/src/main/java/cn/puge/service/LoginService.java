@@ -3,6 +3,7 @@ package cn.puge.service;
 import cn.puge.entity.PugeUser;
 import cn.puge.exception.BusinessException;
 import cn.puge.request.LoginRequest;
+import cn.puge.request.RegisterRequest;
 import cn.puge.response.LoginResponse;
 
 import java.util.Map;
@@ -26,8 +27,18 @@ public class LoginService {
     /**
      * 存放用户信息的Map集合
      * 运用静态的Map集合来模拟数据库中的数据
+     * key: 手机号（微信用户为 "WECHAT_" + openId）
+     * value: 用户信息
      */
     private static final Map<String, PugeUser> PUGE_USER_MAP = new ConcurrentHashMap<>();
+
+    /**
+     * 存放用户ID到用户对象的映射
+     * 用于通过token快速查找用户的完整信息（含角色）
+     * key: userId
+     * value: 用户信息
+     */
+    private static final Map<String, PugeUser> USER_ID_MAP = new ConcurrentHashMap<>();
 
     /**
      * 存放AccessToken的Map集合
@@ -52,23 +63,27 @@ public class LoginService {
      * 静态代码块，初始化模拟用户数据
      */
     static {
-        // 模拟用户一
+        // 模拟用户一（管理员）
         PugeUser pugeUser = new PugeUser();
         pugeUser.setUserId("U001");
         pugeUser.setPhone("13546069966");
         pugeUser.setPassword("123456");
         pugeUser.setNickname("火龙果用户一");
+        pugeUser.setRole("admin");
         pugeUser.setCreateTime(System.currentTimeMillis());
         PUGE_USER_MAP.put("13546069966", pugeUser);
+        USER_ID_MAP.put("U001", pugeUser);
 
-        // 模拟用户二
+        // 模拟用户二（普通用户）
         PugeUser pugeUser1 = new PugeUser();
         pugeUser1.setUserId("U002");
         pugeUser1.setPhone("13935193040");
         pugeUser1.setPassword("654321");
         pugeUser1.setNickname("火龙果用户二");
+        pugeUser1.setRole("user");
         pugeUser1.setCreateTime(System.currentTimeMillis());
         PUGE_USER_MAP.put("13935193040", pugeUser1);
+        USER_ID_MAP.put("U002", pugeUser1);
 
         // 模拟微信用户（用于微信登录测试）
         PugeUser wechatUser = new PugeUser();
@@ -76,9 +91,11 @@ public class LoginService {
         wechatUser.setWechatOpenId("oABC123DEF456");
         wechatUser.setNickname("微信用户");
         wechatUser.setAvatarUrl("https://example.com/avatar.jpg");
+        wechatUser.setRole("user");
         wechatUser.setCreateTime(System.currentTimeMillis());
         // 使用特殊前缀存储微信用户
         PUGE_USER_MAP.put("WECHAT_oABC123DEF456", wechatUser);
+        USER_ID_MAP.put("W001", wechatUser);
     }
 
     /**
@@ -115,6 +132,46 @@ public class LoginService {
                 default:
                     return LoginResponse.fail(400, "登录类型处理异常");
             }
+        } catch (BusinessException e) {
+            return LoginResponse.fail(400, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return LoginResponse.fail(400, e.getMessage());
+        } catch (Exception e) {
+            return LoginResponse.fail(500, "系统异常，请稍后重试");
+        }
+    }
+
+    /**
+     * 用户注册
+     * 注册成功后自动登录，返回包含token的登录响应
+     *
+     * @param request 注册请求参数
+     * @return 登录响应（包含token和用户信息）
+     */
+    public LoginResponse register(RegisterRequest request) {
+        try {
+            // 参数校验
+            request.validate();
+
+            String phone = request.getPhone();
+
+            // 检查手机号是否已注册
+            if (PUGE_USER_MAP.containsKey(phone)) {
+                return LoginResponse.fail(400, "该手机号已注册");
+            }
+
+            // 创建新用户
+            PugeUser user = registerUser(phone, request.getPassword(), null);
+
+            // 如果用户提供了昵称，覆盖默认昵称
+            if (request.getNickname() != null) {
+                user.setNickname(request.getNickname());
+            }
+
+            // 生成令牌并返回（注册即登录）
+            LoginResponse response = generateLoginResponse(user);
+            response.setMessage("注册成功");
+            return response;
         } catch (BusinessException e) {
             return LoginResponse.fail(400, e.getMessage());
         } catch (IllegalArgumentException e) {
@@ -263,9 +320,11 @@ public class LoginService {
         user.setPassword(password);
         user.setWechatOpenId(wechatOpenId);
         user.setNickname("用户" + phone.substring(phone.length() - 4));
+        user.setRole("user");
         user.setCreateTime(System.currentTimeMillis());
 
         PUGE_USER_MAP.put(phone, user);
+        USER_ID_MAP.put(user.getUserId(), user);
         return user;
     }
 
@@ -281,9 +340,11 @@ public class LoginService {
         user.setWechatOpenId(wechatOpenId);
         user.setNickname("微信用户" + wechatOpenId.substring(wechatOpenId.length() - 4));
         user.setAvatarUrl("https://example.com/default-avatar.jpg");
+        user.setRole("user");
         user.setCreateTime(System.currentTimeMillis());
 
         PUGE_USER_MAP.put("WECHAT_" + wechatOpenId, user);
+        USER_ID_MAP.put(user.getUserId(), user);
         return user;
     }
 
@@ -338,5 +399,89 @@ public class LoginService {
      */
     public int getUserCount() {
         return PUGE_USER_MAP.size();
+    }
+
+    // ==================== 管理员功能 ====================
+
+    /**
+     * 根据Token获取完整用户信息（含角色）
+     *
+     * @param token 访问令牌
+     * @return 用户信息，不存在返回null
+     */
+    public PugeUser getUserByToken(String token) {
+        String userId = TOKEN_USER_MAP.get(token);
+        if (userId == null) {
+            return null;
+        }
+        return USER_ID_MAP.get(userId);
+    }
+
+    /**
+     * 校验Token是否为管理员
+     *
+     * @param token 访问令牌
+     * @return 是否为管理员
+     */
+    public boolean isAdmin(String token) {
+        PugeUser user = getUserByToken(token);
+        return user != null && "admin".equals(user.getRole());
+    }
+
+    /**
+     * 获取所有用户列表（仅管理员可用）
+     *
+     * @return 所有用户的集合
+     */
+    public java.util.Collection<PugeUser> getAllUsers() {
+        return PUGE_USER_MAP.values();
+    }
+
+    /**
+     * 管理员删除用户
+     *
+     * @param adminToken 管理员令牌
+     * @param phone      要删除的用户手机号
+     * @return 操作结果消息
+     * @throws IllegalArgumentException 权限不足或操作不合法时抛出
+     */
+    public String deleteUser(String adminToken, String phone) {
+        // 校验管理员权限
+        PugeUser adminUser = getUserByToken(adminToken);
+        if (adminUser == null) {
+            throw new IllegalArgumentException("未登录或令牌无效");
+        }
+        if (!"admin".equals(adminUser.getRole())) {
+            throw new IllegalArgumentException("无管理员权限");
+        }
+
+        // 查找要删除的用户
+        PugeUser targetUser = PUGE_USER_MAP.get(phone);
+        if (targetUser == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+
+        // 不能删除自己
+        if (adminUser.getUserId().equals(targetUser.getUserId())) {
+            throw new IllegalArgumentException("不能删除自己的账号");
+        }
+
+        // 不能删除其他管理员
+        if ("admin".equals(targetUser.getRole())) {
+            throw new IllegalArgumentException("不能删除其他管理员账号");
+        }
+
+        // 从数据存储中移除
+        PUGE_USER_MAP.remove(phone);
+        USER_ID_MAP.remove(targetUser.getUserId());
+
+        // 清理该用户的所有token（遍历TOKEN_USER_MAP）
+        TOKEN_USER_MAP.entrySet().removeIf(
+                entry -> targetUser.getUserId().equals(entry.getValue()));
+
+        System.out.println("【管理员操作】" + adminUser.getNickname()
+                + " 删除了用户 " + targetUser.getNickname()
+                + " (" + targetUser.getPhone() + ")");
+        return "用户 " + targetUser.getNickname() + " 已删除";
     }
 }
