@@ -4,7 +4,7 @@ package cn.puge.entity;
  * 用户实体类
  * 用于存储用户基本信息
  *
- * @author Puge
+ * @author guokaile
  * @since 1.0
  */
 public class PugeUser {
@@ -55,13 +55,13 @@ public class PugeUser {
     private String role;
 
     /**
-     * 默认构造器
+     * 无参构造方法
      */
     public PugeUser() {
     }
 
     /**
-     * 全参构造器
+     * 有参构造方法
      *
      * @param userId       用户ID
      * @param phone        手机号
@@ -69,6 +69,7 @@ public class PugeUser {
      * @param wechatOpenId 微信OpenId
      * @param nickname     昵称
      * @param avatarUrl    头像URL
+     * @param role         用户角色（admin=管理员, user=普通用户）
      */
     public PugeUser(String userId, String phone, String password, String wechatOpenId,
                     String nickname, String avatarUrl, String role) {
@@ -79,6 +80,8 @@ public class PugeUser {
         this.nickname = nickname;
         this.avatarUrl = avatarUrl;
         this.role = role;
+        //currentTimeMillis()是Java标准库中的一个静态方法，用于获取当前时间的毫秒数
+        //createTime用来记录用户创建时间，updateTime用来记录用户最后更新时间
         this.createTime = System.currentTimeMillis();
         this.updateTime = System.currentTimeMillis();
     }

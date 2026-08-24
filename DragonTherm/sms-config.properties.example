@@ -1,0 +1,14 @@
+# ============================================================
+# 阿里云短信服务配置模板
+# 复制此文件为 sms-config.properties 并填入真实值
+# ============================================================
+
+# 阿里云 AccessKey（在 RAM 访问控制台创建）
+accessKeyId=你的AccessKeyId
+accessKeySecret=你的AccessKeySecret
+
+# 短信签名（在短信控制台申请，审核通过后可用）
+signName=你的签名名称
+
+# 短信模板CODE（在短信控制台申请，审核通过后可用）
+templateCode=你的模板CODE

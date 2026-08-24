@@ -6,7 +6,7 @@ import cn.puge.entity.PugeUser;
  * 登录响应类
  * 封装登录操作的返回结果
  *
- * @author Puge
+ * @author guokaile
  * @since 1.0
  */
 public class LoginResponse {
@@ -131,6 +131,8 @@ public class LoginResponse {
 
     // ==================== 静态工厂方法 ====================
 
+    //采用了四个静态工厂方法，两个用于创建成功响应，两个用于创建失败响应。方法重载实现默认参数。
+
     /**
      * 创建成功响应
      *
@@ -140,6 +142,7 @@ public class LoginResponse {
      * @param expiresIn    过期时间
      * @return 成功响应
      */
+    //为了简化将RT放在响应实体中，但是实践的业务场景中会引发安全问题RT泄露。出产环境会通过【HttpOnly cookie】隔离存储RT。
     public static LoginResponse success(PugeUser user, String accessToken,
                                         String refreshToken, Long expiresIn) {
         return success(user, accessToken, refreshToken, expiresIn, "登录成功");
@@ -147,12 +150,22 @@ public class LoginResponse {
 
     /**
      * 创建成功响应（支持自定义消息，如注册成功）
+     *
+     * @param user         用户信息
+     * @param accessToken  访问令牌
+     * @param refreshToken 刷新令牌
+     * @param expiresIn    过期时间
+     * @param message      自定义消息
+     * @return 成功响应
      */
     public static LoginResponse success(PugeUser user, String accessToken,
                                         String refreshToken, Long expiresIn, String message) {
         LoginResponse response = new LoginResponse();
+        //默认成功码为200
         response.setCode(200);
+        //把Service层传来的自定义message赋值给DTO的message字段
         response.setMessage(message);
+        //默认成功标识为true
         response.setSuccess(true);
         response.setAccessToken(accessToken);
         response.setRefreshToken(refreshToken);

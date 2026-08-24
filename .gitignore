@@ -10,6 +10,7 @@ target/
 
 # ==================== IDE ====================
 .idea/workspace.xml
+.idea/vcs.xml
 .idea/shelf/
 .idea/httpRequests/
 .idea/dataSources/
@@ -27,3 +28,9 @@ Thumbs.db
 # ==================== 敏感文件 ====================
 *.log
 *.tmp
+
+# ==================== 密钥与配置 ====================
+sms-config.properties
+application.properties
+*.key
+credentials.*

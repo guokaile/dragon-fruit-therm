@@ -19,7 +19,7 @@ import cn.puge.service.LoginService;
  * 1. 手机号验证码登录
  * 2. 微信登录
  * 3. 账号密码登录
- *
+ * 4. 注册账号
  * @author GuoKaiLe
  * @since 1.0
  */
@@ -28,6 +28,9 @@ public class dragonThermLogin {
     /**
      * 登录服务实例
      */
+    //本质是「给整个应用提供一个唯一的LoginService访问入口」，避免了在多个地方创建多个实例的麻烦。（门面类）
+    //整个应用生命周期内只有一个LoginService实例，所有登录操作都通过这个实例进行。
+    //静态常量在类加载时初始化，且初始化是线程安全的。
     private static final LoginService LOGIN_SERVICE = new LoginService();
 
     /**
@@ -35,8 +38,10 @@ public class dragonThermLogin {
      *
      * @param args 命令行参数
      */
+    //String[] args 是 Java 程序的「命令行参数入口」——是 main 方法（程序启动的入口方法）的唯一标准参数，用来接收「启动程序时从命令行传入的外部参数」
     public static void main(String[] args) {
         // 优先判断是否启动控制台测试模式
+        //如果args的参数长度大于0，且命令行参数中包含 console，就启动控制台模式演示
         if (args.length > 0 && "console".equalsIgnoreCase(args[0])) {
             runConsoleDemo();
             return;
@@ -54,8 +59,11 @@ public class dragonThermLogin {
         System.out.println("  火龙果智能温控系统 - 登录模块 v1.0");
         System.out.println("===========================================\n");
 
+        //测试账号密码登录
         testPasswordLogin();
+        //测试手机号验证码登录
         testSmsCodeLogin();
+        //测试微信登录
         testWechatLogin();
 
         System.out.println("\n===========================================");
@@ -86,7 +94,7 @@ public class dragonThermLogin {
         LoginRequest request2 = new LoginRequest();
         request2.setLoginType(LoginRequest.LoginType.PASSWORD.getCode());
         request2.setPhone("13935193040");
-        request2.setPassword("wrong_password");
+        request2.setPassword("112233");
         request2.setClientIp("127.0.0.1");
 
         // 执行登录
@@ -119,8 +127,9 @@ public class dragonThermLogin {
         System.out.println("步骤1: 发送验证码到手机号 " + phone);
         try {
             String smsCode = LOGIN_SERVICE.sendSmsCode(phone);
-            System.out.println("验证码已发送（模拟）: " + smsCode);
+            System.out.println("验证码已发送（测试）: " + smsCode);
         } catch (Exception e) {
+            //e.getMessage() 是 Java 异常类的「获取错误信息」方法，用于获取异常的详细描述
             System.out.println("发送失败: " + e.getMessage());
             return;
         }

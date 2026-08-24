@@ -85,6 +85,7 @@ public class RegisterRequest {
      */
     public void validate() {
         // 手机号校验
+        //运用工具类ValidationUtil的isValidPhone方法，校验手机号格式是否正确
         if (!ValidationUtil.isValidPhone(phone)) {
             throw new IllegalArgumentException("手机号格式不正确");
         }

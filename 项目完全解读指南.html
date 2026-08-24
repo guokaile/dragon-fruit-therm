@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>火龙果智能温控系统 — 项目完全解读指南</title>
+<style>
+  /* ============================================================
+     CSS Variables & Theme
+     ============================================================ */
+  :root {
+    --bg:           #ffffff;
+    --surface:      #f8f9fa;
+    --surface2:     #eef0f2;
+    --border:       #dee2e6;
+    --text:         #212529;
+    --text-muted:   #6c757d;
+    --accent:       #d63384;
+    --accent2:      #7c3aed;
+    --green:        #198754;
+    --blue:         #0d6efd;
+    --yellow:       #e6a817;
+    --orange:       #fd7e14;
+    --red:          #dc3545;
+    --teal:         #20c997;
+    --radius:       10px;
+    --radius-sm:    6px;
+    --shadow:       0 4px 30px rgba(0,0,0,.08);
+    --font-mono:    'Cascadia Code','Fira Code','JetBrains Mono','Consolas','Courier New',monospace;
+    --font-sans:    'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============================================================
+     Layout
+     ============================================================ */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* ============================================================
+     Hero
+     ============================================================ */
+  .hero {
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #f3f0ff 0%, #f0f4ff 40%, #fff5f5 100%);
+    padding: 80px 0 64px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero::before {
+    content: ''; position: absolute;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: radial-gradient(ellipse at 30% 20%, rgba(124,58,237,.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 60%, rgba(214,51,132,.06) 0%, transparent 50%);
+    animation: heroFloat 20s ease-in-out infinite;
+  }
+  @keyframes heroFloat {
+    0%,100% { transform: translate(0,0); }
+    50% { transform: translate(20px,-20px); }
+  }
+  .hero-content { position: relative; z-index: 1; }
+  .hero h1 {
+    font-size: clamp(32px, 5vw, 52px); font-weight: 800;
+    background: linear-gradient(135deg, var(--accent2), var(--accent), var(--orange));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px; letter-spacing: -0.5px;
+  }
+  .hero .subtitle { font-size: 18px; color: var(--text-muted); max-width: 640px; margin: 0 auto 24px; }
+  .hero .badges { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 16px; border-radius: 20px;
+    font-size: 13px; font-weight: 600;
+    border: 1px solid var(--border);
+    background: rgba(0,0,0,.03);
+  }
+  .badge.java  { color: var(--orange); border-color: rgba(253,126,20,.4); }
+  .badge.maven { color: var(--teal);  border-color: rgba(32,201,151,.4); }
+  .badge.js    { color: #b8860b;     border-color: rgba(184,134,11,.4); }
+  .badge.css   { color: var(--blue);  border-color: rgba(13,110,253,.4); }
+
+  /* ============================================================
+     Sidebar + Content Layout
+     ============================================================ */
+  .main-layout { display: flex; max-width: 1400px; margin: 0 auto; }
+  .sidebar {
+    width: 280px; flex-shrink: 0;
+    position: sticky; top: 0; height: 100vh;
+    overflow-y: auto;
+    padding: 32px 20px;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .sidebar h3 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 2px;
+    color: var(--text-muted); margin-bottom: 12px;
+  }
+  .sidebar nav a {
+    display: block; padding: 8px 12px; border-radius: var(--radius-sm);
+    color: var(--text-muted); text-decoration: none; font-size: 14px;
+    transition: all .2s; border-left: 2px solid transparent;
+  }
+  .sidebar nav a:hover, .sidebar nav a.active {
+    color: var(--accent2); background: rgba(124,58,237,.06);
+    border-left-color: var(--accent2);
+  }
+  .content {
+    flex: 1; min-width: 0;
+    padding: 40px 48px 80px;
+  }
+
+  /* ============================================================
+     Content Sections
+     ============================================================ */
+  section { margin-bottom: 56px; }
+  section h2 {
+    font-size: 28px; font-weight: 700; margin-bottom: 8px;
+    padding-bottom: 12px; border-bottom: 2px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  section h2 .emoji { font-size: 30px; }
+  section h3 {
+    font-size: 20px; font-weight: 600; margin: 32px 0 12px;
+    color: var(--accent2);
+  }
+  section h4 {
+    font-size: 16px; font-weight: 600; margin: 20px 0 8px;
+    color: var(--text);
+  }
+  section p { margin-bottom: 12px; color: var(--text-muted); }
+  section ul, section ol { margin: 0 0 16px 24px; color: var(--text-muted); }
+  section li { margin-bottom: 6px; }
+  section a { color: var(--blue); text-decoration: none; }
+  section a:hover { text-decoration: underline; }
+
+  /* ============================================================
+     Code blocks
+     ============================================================ */
+  pre {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px;
+    overflow-x: auto; margin: 16px 0;
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.7;
+    color: #333;
+  }
+  code {
+    font-family: var(--font-mono); font-size: 13px;
+    background: rgba(0,0,0,.06); padding: 2px 6px;
+    border-radius: 4px; color: #c7254e;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+
+  /* ============================================================
+     Cards & Info Boxes
+     ============================================================ */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin: 16px 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .card-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px; margin: 16px 0;
+  }
+  .info-box {
+    border-left: 3px solid var(--blue); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 16px 20px; margin: 16px 0;
+    background: rgba(13,110,253,.06);
+  }
+  .info-box.tip  { border-left-color: var(--green); background: rgba(25,135,84,.06); }
+  .info-box.warn { border-left-color: var(--yellow); background: rgba(230,168,23,.06); }
+  .info-box.key  { border-left-color: var(--accent); background: rgba(214,51,132,.06); }
+
+  /* ============================================================
+     Architecture Diagram
+     ============================================================ */
+  .arch-diagram {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 32px;
+    margin: 20px 0; overflow-x: auto;
+    font-family: var(--font-mono); font-size: 13px;
+    line-height: 1.8; white-space: pre; text-align: center;
+    color: #333; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+
+  /* ============================================================
+     Flow chart
+     ============================================================ */
+  .flow-step {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 12px 0; border-bottom: 1px solid rgba(0,0,0,.06);
+  }
+  .flow-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--accent2); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; flex-shrink: 0;
+    opacity: .9;
+  }
+  .flow-body { flex: 1; }
+  .flow-body strong { color: var(--text); }
+  .flow-body p { font-size: 13px; margin-top: 2px; }
+
+  /* ============================================================
+     Tables
+     ============================================================ */
+  table {
+    width: 100%; border-collapse: collapse; margin: 16px 0;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  td { color: var(--text); }
+
+  /* ============================================================
+     Highlight tags
+     ============================================================ */
+  .tag {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+  }
+  .tag-entry   { background: rgba(13,110,253,.10); color: var(--blue); }
+  .tag-service { background: rgba(25,135,84,.10); color: var(--green); }
+  .tag-model   { background: rgba(230,168,23,.10); color: #92600a; }
+  .tag-util    { background: rgba(32,201,151,.10); color: #0d7a5c; }
+  .tag-core    { background: rgba(214,51,132,.10); color: var(--accent); }
+
+  /* ============================================================
+     File tree colors
+     ============================================================ */
+  .file-tree { font-family: var(--font-mono); font-size: 13px; line-height: 1.8; }
+  .file-tree .dir  { color: var(--blue); }
+  .file-tree .file { color: var(--text-muted); }
+  .file-tree .hl   { color: var(--accent); font-weight: 600; }
+  .file-tree .comment { color: #999; font-style: italic; }
+
+  /* ============================================================
+     Mobile Responsive
+     ============================================================ */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .content { padding: 24px 16px 60px; }
+  }
+
+  /* ============================================================
+     Print
+     ============================================================ */
+  @media print {
+    .sidebar { display: none; }
+    .content { padding: 20px; }
+    pre, .card, .arch-diagram { border: 1px solid #ccc; background: #fafafa; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== Hero ==================== -->
+<div class="hero">
+  <div class="hero-content">
+    <h1>🔥 火龙果智能温控系统</h1>
+    <p class="subtitle">Dragon Fruit Smart Temperature Control System<br>项目完全解读指南 &mdash; 从入门到精通</p>
+    <div class="badges">
+      <span class="badge java">☕ Java 25</span>
+      <span class="badge maven">📦 Maven</span>
+      <span class="badge js">📜 Vanilla JS</span>
+      <span class="badge css">🎨 CSS3 + Tailwind</span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== Main Layout ==================== -->
+<div class="main-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h3>📑 目录导航</h3>
+    <nav>
+      <a href="#s1">一、项目概览</a>
+      <a href="#s2">二、项目地图</a>
+      <a href="#s3">三、架构全景图</a>
+      <a href="#s4">四、后端核心模块</a>
+      <a href="#s5">五、前端核心模块</a>
+      <a href="#s6">六、请求生命周期</a>
+      <a href="#s7">七、关键设计模式</a>
+      <a href="#s8">八、数据存储与模拟</a>
+      <a href="#s9">九、演示模式机制</a>
+      <a href="#s10">十、角色权限系统</a>
+      <a href="#s11">十一、演进历史</a>
+      <a href="#s12">十二、学习路线建议</a>
+      <a href="#s13">十三、技术要点速查</a>
+    </nav>
+  </aside>
+
+  <!-- Content -->
+  <main class="content">
+
+<!-- ================================================================
+     SECTION 1: 项目概览
+     ================================================================ -->
+<section id="s1">
+<h2><span class="emoji">🧭</span> 一、项目概览</h2>
+
+<h3>1.1 这是什么项目？</h3>
+<p>
+  火龙果智能温控系统是一个<strong>智能温度控制管理平台</strong>的登录/用户模块。它不是一个玩具项目，而是一个
+  <strong>具备生产级思维</strong>的演示系统，包含完整的登录认证、用户注册、角色权限管理功能。
+</p>
+<p>核心亮点：</p>
+<ul>
+  <li><strong>零外部依赖的 HTTP 服务器</strong> — 纯 JDK 内置 <code>com.sun.net.httpserver</code> 实现，不需要 Tomcat/Spring</li>
+  <li><strong>三种登录方式</strong> — 账号密码、短信验证码、微信授权，覆盖主流认证场景</li>
+  <li><strong>双模式运行</strong> — 本地模式（Java 后端 + 真实 HTTP）+ 演示模式（纯前端模拟，可部署 GitHub Pages）</li>
+  <li><strong>角色权限系统</strong> — admin/user 双角色，管理员可查看/删除用户</li>
+  <li><strong>手写 JSON 序列化</strong> — 不依赖 Jackson/Gson，理解底层原理</li>
+  <li><strong>ConcurrentHashMap 内存存储</strong> — 模拟数据库，理解并发安全</li>
+  <li><strong>现代化前端</strong> — 粒子动画、3D 标签云、Chart.js 图表、响应式设计</li>
+</ul>
+
+<h3>1.2 技术栈一览</h3>
+<table>
+  <tr><th>层级</th><th>技术</th><th>说明</th></tr>
+  <tr><td>后端语言</td><td>Java 25</td><td>最新 LTS 版本，使用虚拟线程等新特性</td></tr>
+  <tr><td>构建工具</td><td>Maven 3.x</td><td>仅配置 compiler-plugin，无外部依赖</td></tr>
+  <tr><td>HTTP 服务</td><td>com.sun.net.httpserver</td><td>JDK 内置，零依赖</td></tr>
+  <tr><td>前端框架</td><td>无框架 / Vanilla JS</td><td>纯原生 JavaScript，不依赖 React/Vue</td></tr>
+  <tr><td>CSS 框架</td><td>Tailwind CSS v3 (CDN)</td><td>仅仪表盘页面使用</td></tr>
+  <tr><td>图表库</td><td>Chart.js 4.4</td><td>温度趋势、设备状态、能耗分析图表</td></tr>
+  <tr><td>粒子效果</td><td>particles.js 2.0</td><td>登录页粒子背景</td></tr>
+  <tr><td>数据存储</td><td>ConcurrentHashMap</td><td>内存存储，模拟数据库</td></tr>
+  <tr><td>部署</td><td>GitHub Pages</td><td>演示模式纯静态托管</td></tr>
+</table>
+</section>
+
+<!-- ================================================================
+     SECTION 2: 项目地图
+     ================================================================ -->
+<section id="s2">
+<h2><span class="emoji">🗺️</span> 二、项目地图 — 每个文件的作用</h2>
+
+<div class="file-tree">
+<pre><span class="comment">火龙果系统/                          ← 项目根目录</span>
+├── <span class="file">index.html</span>                        <span class="comment">→ 入口跳转页（重定向到登录页）</span>
+├── <span class="file">README.md</span>                          <span class="comment">→ 项目说明文档</span>
+│
+└── <span class="dir">DragonTherm/</span>                        <span class="comment">← 核心工程目录（Maven 项目）</span>
+    ├── <span class="file hl">pom.xml</span>                           <span class="comment">→ Maven 构建配置（Java 25, 零依赖）</span>
+    │
+    ├── <span class="dir">src/main/java/cn/puge/</span>             <span class="comment">← Java 源码根目录</span>
+    │   │
+    │   ├── <span class="file hl">dragonThermLogin.java</span>           <span class="comment">→ 🚀 程序入口 main()，控制台/HTTP 双模式</span>
+    │   │
+    │   ├── <span class="dir">entity/</span>
+    │   │   └── <span class="file hl">PugeUser.java</span>                <span class="comment">→ 用户实体类（userId, phone, password, role 等）</span>
+    │   │
+    │   ├── <span class="dir">exception/</span>
+    │   │   └── <span class="file">BusinessException.java</span>        <span class="comment">→ 业务异常基类（带 errorCode）</span>
+    │   │
+    │   ├── <span class="dir">request/</span>
+    │   │   ├── <span class="file">LoginRequest.java</span>             <span class="comment">→ 登录请求 DTO + 三种登录方式的参数校验</span>
+    │   │   └── <span class="file">RegisterRequest.java</span>          <span class="comment">→ 注册请求 DTO + 手机号/密码/确认密码校验</span>
+    │   │
+    │   ├── <span class="dir">response/</span>
+    │   │   └── <span class="file">LoginResponse.java</span>            <span class="comment">→ 登录响应 DTO + UserInfo 内部类 + 静态工厂方法</span>
+    │   │
+    │   ├── <span class="dir">service/</span>
+    │   │   ├── <span class="file hl">HttpServer.java</span>               <span class="comment">→ 🌐 HTTP 服务器：路由分发、静态文件服务、JSON 解析</span>
+    │   │   ├── <span class="file hl">LoginService.java</span>             <span class="comment">→ 🔐 核心业务：登录/注册/Token 管理/用户管理</span>
+    │   │   └── <span class="file">SmsCodeService.java</span>            <span class="comment">→ 📱 短信验证码：生成、存储、校验、防刷</span>
+    │   │
+    │   └── <span class="dir">util/</span>
+    │       └── <span class="file">ValidationUtil.java</span>            <span class="comment">→ 🛡️ 校验工具：手机号/密码/验证码正则校验</span>
+    │
+    └── <span class="dir">web/</span>                                <span class="comment">← 前端静态资源目录</span>
+        ├── <span class="file hl">login.html</span>                      <span class="comment">→ 🔑 登录/注册页面（四标签切换）</span>
+        ├── <span class="file hl">login.js</span>                        <span class="comment">→ 📜 登录前端逻辑（含演示模式模拟）</span>
+        ├── <span class="file">style.css</span>                        <span class="comment">→ 🎨 登录页专属样式</span>
+        ├── <span class="file">particles-config.js</span>              <span class="comment">→ ✨ 粒子背景配置</span>
+        ├── <span class="file hl">index.html</span>                      <span class="comment">→ 📊 仪表盘主页（3D标签云 + 图表 + 管理员面板）</span>
+        ├── <span class="file hl">app.js</span>                          <span class="comment">→ ⚡ 仪表盘核心逻辑（3800行）</span>
+        └── <span class="file">开发参考-短信与微信登录实现方案.html</span>  <span class="comment">→ 📖 开发参考文档</span></pre>
+</div>
+
+<div class="info-box key">
+  <strong>🔑 关键认知：</strong>这个项目有两个"入口"——<br>
+  ① <strong>后端入口：</strong><code>dragonThermLogin.java</code> 的 <code>main()</code> → 启动 HTTP 服务器<br>
+  ② <strong>前端入口：</strong><code>login.html</code>（登录页）→ 登录成功后跳转 <code>index.html</code>（仪表盘）
+</div>
+</section>
+
+<!-- ================================================================
+     SECTION 3: 架构全景图
+     ================================================================ -->
+<section id="s3">
+<h2><span class="emoji">🏗️</span> 三、架构全景图</h2>
+
+<h3>3.1 分层架构</h3>
+<div class="arch-diagram">
+┌─────────────────────────────────────────────────────────────────────┐
+│                        【前端层 - Frontend】                          │
+│  ┌──────────────┐  ┌──────────────────┐  ┌────────────────────┐    │
+│  │  login.html  │  │   index.html     │  │  particles.js     │    │
+│  │  + login.js  │  │   + app.js       │  │  + Chart.js       │    │
+│  │  + style.css │  │   + Tailwind CSS │  │  + Font Awesome   │    │
+│  └──────┬───────┘  └────────┬─────────┘  └────────────────────┘    │
+│         │                   │                                       │
+│         └─────────┬─────────┘                                       │
+│                   │  HTTP (XHR / fetch)                             │
+│                   ▼                                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                      【传输层 - HTTP】                                │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │         com.sun.net.httpserver.HttpServer (JDK 内置)          │  │
+│  │         GET  /api/*      POST /api/login                      │  │
+│  │         POST /api/sendSms    POST /api/register              │  │
+│  │         GET  /api/admin/users   DELETE /api/admin/users      │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                   │                                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                      【业务层 - Service】                            │
+│  ┌──────────────────┐  ┌────────────────┐  ┌──────────────────┐   │
+│  │  LoginService    │  │ SmsCodeService │  │ ValidationUtil   │   │
+│  │  登录/注册/Token │  │ 验证码生成/校验│  │ 参数校验工具     │   │
+│  │  用户管理/鉴权   │  │ 发送频率控制   │  │ 正则表达式       │   │
+│  └────────┬─────────┘  └───────┬────────┘  └──────────────────┘   │
+│           │                    │                                    │
+├───────────┼────────────────────┼────────────────────────────────────┤
+│           ▼                    ▼                                    │
+│                      【数据层 - Data】                               │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  ConcurrentHashMap&lt;String, PugeUser&gt;   PUGE_USER_MAP         │  │
+│  │  ConcurrentHashMap&lt;String, String&gt;     TOKEN_USER_MAP        │  │
+│  │  ConcurrentHashMap&lt;String, SmsCodeInfo&gt; SMS_CODE_MAP         │  │
+│  │  ConcurrentHashMap&lt;String, PugeUser&gt;   USER_ID_MAP          │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                   │                                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                      【实体层 - Entity/Request/Response】            │
+│  ┌──────────────┐  ┌──────────────────┐  ┌────────────────────┐    │
+│  │  PugeUser    │  │  LoginRequest    │  │  LoginResponse     │    │
+│  │  (用户实体)  │  │  RegisterRequest │  │  (响应DTO)         │    │
+│  └──────────────┘  └──────────────────┘  └────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>3.2 模块依赖关系</h3>
+<div class="arch-diagram">
+                    ┌──────────────────────────┐
+                    │   dragonThermLogin.java  │  ← 程序入口
+                    │   main(String[] args)    │
+                    └─────┬────────────┬───────┘
+                          │            │
+              args="console"       args=端口号 或 无
+                          │            │
+                          ▼            ▼
+              ┌──────────────┐  ┌──────────────────┐
+              │ 控制台测试   │  │  HttpServer.java  │
+              │ runConsole() │  │  main(args)       │
+              └──────┬───────┘  └────────┬─────────┘
+                     │                   │
+                     ▼                   ▼
+              ┌──────────────────────────────────────┐
+              │         LoginService.java            │
+              │  ┌──────────────────────────────┐   │
+              │  │ login(LoginRequest)           │   │
+              │  │   ├─ handlePasswordLogin()    │   │
+              │  │   ├─ handleSmsCodeLogin()     │───┼──→ SmsCodeService.java
+              │  │   └─ handleWechatLogin()      │   │
+              │  │                               │   │
+              │  │ register(RegisterRequest)     │   │
+              │  │ getAllUsers()                 │   │
+              │  │ deleteUser(token, phone)      │   │
+              │  │ getUserByToken(token)         │   │
+              │  │ validateToken(token)          │   │
+              │  └──────────────────────────────┘   │
+              └──────────────────────────────────────┘
+                     │                   │
+                     ▼                   ▼
+              ┌──────────────┐  ┌──────────────────┐
+              │ PugeUser     │  │ LoginResponse    │
+              │ LoginRequest │  │ ValidationUtil   │
+              └──────────────┘  └──────────────────┘
+</div>
+</section>
+
+<!-- ================================================================
+     SECTION 4: 后端核心模块
+     ================================================================ -->
+<section id="s4">
+<h2><span class="emoji">☕</span> 四、后端核心模块详解</h2>
+
+<h3>4.1 程序入口 — <span class="tag tag-entry">dragonThermLogin.java</span></h3>
+<p>这是整个后端的大脑。它决定程序以什么模式运行：</p>
+<ul>
+  <li><strong>无参数启动：</strong>调用 <code>HttpServer.main(args)</code>，启动 HTTP 服务器（默认 8080 端口）</li>
+  <li><strong>带端口号：</strong>如 <code>9090</code>，启动 HTTP 服务器在指定端口</li>
+  <li><strong>console 模式：</strong>直接在命令行运行三种登录方式的测试，不启动服务器</li>
+</ul>
+<div class="info-box tip">
+  <strong>💡 学习要点：</strong>这是典型的 <strong>Facade 模式</strong>——对外暴露简单的静态方法 <code>dragonThermLogin(LoginRequest)</code> 和 <code>sendSmsCode(String)</code>，内部委托给 LoginService 处理。
+</div>
+
+<h3>4.2 HTTP 服务器 — <span class="tag tag-core">HttpServer.java</span></h3>
+<p><strong>这是整个项目最核心、代码量最大的文件（709行）。</strong>它实现了一个完整的 HTTP 服务器，包括：</p>
+
+<h4>路由表</h4>
+<table>
+  <tr><th>方法</th><th>路径</th><th>处理器</th><th>功能</th></tr>
+  <tr><td>GET</td><td><code>/</code> 或 <code>/login.html</code></td><td>serveStaticFile</td><td>返回登录页面</td></tr>
+  <tr><td>GET</td><td><code>/*</code> (其他路径)</td><td>serveStaticFile</td><td>返回静态文件 (css/js/图片)</td></tr>
+  <tr><td>POST</td><td><code>/api/sendSms</code></td><td>handleSendSms</td><td>发送短信验证码</td></tr>
+  <tr><td>POST</td><td><code>/api/login</code></td><td>handleLogin</td><td>用户登录</td></tr>
+  <tr><td>POST</td><td><code>/api/register</code></td><td>handleRegister</td><td>用户注册</td></tr>
+  <tr><td>GET</td><td><code>/api/admin/users</code></td><td>handleAdminListUsers</td><td>管理员获取用户列表</td></tr>
+  <tr><td>DELETE</td><td><code>/api/admin/users</code></td><td>handleAdminDeleteUser</td><td>管理员删除用户</td></tr>
+</table>
+
+<h4>关键技术实现</h4>
+<ul>
+  <li><strong>静态文件服务：</strong><code>resolveStaticRoot()</code> 方法使用 4 级回退策略查找 web 目录——当前目录 → user.dir → classpath 向上遍历 → 兜底路径</li>
+  <li><strong>路径遍历防护：</strong>检查 <code>..</code> 防止目录穿越攻击</li>
+  <li><strong>手写 JSON 解析：</strong>使用正则表达式 <code>extractJsonField()</code> 提取 JSON 字段，避免引入 Jackson/Gson</li>
+  <li><strong>手写 JSON 序列化：</strong><code>toJson(LoginResponse)</code> 方法手动拼接 JSON 字符串</li>
+  <li><strong>JSON 字符串转义：</strong><code>escapeJson()</code> 处理反斜杠、引号、换行等特殊字符</li>
+  <li><strong>Form/JSON 双格式兼容：</strong>请求体同时支持 <code>application/json</code> 和 <code>application/x-www-form-urlencoded</code></li>
+  <li><strong>Bearer Token 鉴权：</strong>从 Authorization 头提取 token，校验管理员权限</li>
+</ul>
+
+<h3>4.3 核心业务 — <span class="tag tag-service">LoginService.java</span></h3>
+<p>包含所有业务逻辑，是整个系统的"心脏"：</p>
+
+<h4>数据存储（4 个 ConcurrentHashMap）</h4>
+<table>
+  <tr><th>Map 名称</th><th>Key</th><th>Value</th><th>用途</th></tr>
+  <tr><td><code>PUGE_USER_MAP</code></td><td>手机号 / "WECHAT_" + openId</td><td>PugeUser</td><td>主用户表（模拟数据库）</td></tr>
+  <tr><td><code>USER_ID_MAP</code></td><td>userId</td><td>PugeUser</td><td>用户ID快速索引</td></tr>
+  <tr><td><code>TOKEN_USER_MAP</code></td><td>accessToken (UUID)</td><td>userId</td><td>Token → 用户映射</td></tr>
+</table>
+
+<h4>核心方法</h4>
+<ul>
+  <li><code>login(LoginRequest)</code> — 登录入口，按 loginType 分发到三种处理器</li>
+  <li><code>register(RegisterRequest)</code> — 注册新用户，自动生成 userId，返回 token</li>
+  <li><code>handlePasswordLogin()</code> — 查用户 → 验密码 → 发 token</li>
+  <li><code>handleSmsCodeLogin()</code> — 验验证码 → 用户不存在则自动注册 → 发 token</li>
+  <li><code>handleWechatLogin()</code> — 授权码换 OpenId(模拟) → 查微信用户 → 不存在则自动注册 → 发 token</li>
+  <li><code>generateToken()</code> — 用 <code>UUID.randomUUID()</code> 生成唯一 token</li>
+  <li><code>getAllUsers()</code> — 返回所有用户（管理员功能）</li>
+  <li><code>deleteUser(adminToken, phone)</code> — 管理员删除用户（含多重保护：不能删自己、不能删管理员）</li>
+</ul>
+
+<div class="info-box key">
+  <strong>🔑 为什么用 ConcurrentHashMap？</strong><br>
+  <code>HttpServer</code> 使用默认线程池，意味着多个请求可能并发执行。<br>
+  <code>HashMap</code> 在并发 put 时可能导致死循环或数据丢失。<br>
+  <code>ConcurrentHashMap</code> 使用分段锁，保证线程安全的同时性能接近 HashMap。
+</div>
+
+<h3>4.4 短信验证码 — <span class="tag tag-service">SmsCodeService.java</span></h3>
+<ul>
+  <li><strong>验证码生成：</strong><code>Random.nextInt(1000000)</code> → <code>String.format("%06d")</code> 生成 6 位数字</li>
+  <li><strong>防刷机制：</strong>同一手机号 60 秒内不能重复发送</li>
+  <li><strong>验证码生命周期：</strong>发送 → 未使用 → 校验通过 → 标记已使用 → 删除</li>
+  <li><strong>过期处理：</strong>超过 60 秒自动失效，提示重新获取</li>
+  <li><strong>隐私保护：</strong><code>maskPhone()</code> 方法将 13546069966 显示为 135****9966</li>
+  <li><strong>SmsCodeInfo 内部类：</strong>封装验证码 + 发送时间 + 使用状态</li>
+</ul>
+
+<h3>4.5 实体与校验</h3>
+<table>
+  <tr><th>类名</th><th>类型</th><th>关键字段</th></tr>
+  <tr><td><span class="tag tag-model">PugeUser</span></td><td>实体</td><td>userId, phone, password, wechatOpenId, nickname, avatarUrl, role, createTime</td></tr>
+  <tr><td><span class="tag tag-model">LoginRequest</span></td><td>请求DTO</td><td>loginType(1/2/3), phone, password, smsCode, wechatCode, wechatOpenId, clientIp</td></tr>
+  <tr><td><span class="tag tag-model">RegisterRequest</span></td><td>请求DTO</td><td>phone, password, confirmPassword, nickname</td></tr>
+  <tr><td><span class="tag tag-model">LoginResponse</span></td><td>响应DTO</td><td>code, success, message, accessToken, refreshToken, expiresIn, UserInfo</td></tr>
+  <tr><td><span class="tag tag-model">BusinessException</span></td><td>异常</td><td>errorCode, message (继承 RuntimeException)</td></tr>
+  <tr><td><span class="tag tag-util">ValidationUtil</span></td><td>工具</td><td>isValidPhone, isValidSmsCode, isValidPassword, isEmpty</td></tr>
+</table>
+
+<h3>4.6 LoginType 枚举的设计</h3>
+<div class="card">
+  <p><strong>SMS_CODE(1)</strong> → 手机验证码登录<br>
+  <strong>WECHAT(2)</strong> → 微信登录<br>
+  <strong>PASSWORD(3)</strong> → 账号密码登录</p>
+  <p style="margin-top: 8px; font-size: 13px; color: var(--text-muted);">
+    每个枚举值包含 <code>code (int)</code> 和 <code>description (String)</code>。<br>
+    提供了 <code>getByCode(int)</code> 静态方法实现 code→枚举 的反向查找。
+  </p>
+</div>
+</section>
+
+<!-- ================================================================
+     SECTION 5: 前端核心模块
+     ================================================================ -->
+<section id="s5">
+<h2><span class="emoji">🎨</span> 五、前端核心模块详解</h2>
+
+<h3>5.1 登录页 — <span class="tag tag-entry">login.html + login.js</span></h3>
+
+<h4>四标签切换设计</h4>
+<table>
+  <tr><th>Tab</th><th>data-tab</th><th>输入字段</th><th>对应 loginType</th></tr>
+  <tr><td>账号登录</td><td><code>password</code></td><td>手机号 + 密码</td><td>3 (PASSWORD)</td></tr>
+  <tr><td>短信登录</td><td><code>sms</code></td><td>手机号 + 验证码 + 获取按钮</td><td>1 (SMS_CODE)</td></tr>
+  <tr><td>微信登录</td><td><code>wechat</code></td><td>授权码/OpenId 输入框</td><td>2 (WECHAT)</td></tr>
+  <tr><td>注册账号</td><td><code>register</code></td><td>手机号 + 密码 + 确认密码 + 昵称</td><td>走 /api/register</td></tr>
+</table>
+
+<h4>login.js 架构分析</h4>
+<ul>
+  <li><strong>IIFE 包装：</strong><code>(function(){...})()</code> 避免全局变量污染</li>
+  <li><strong>'use strict'：</strong>启用严格模式，防止低级错误</li>
+  <li><strong>环境检测：</strong>通过 <code>window.location.hostname</code> 判断是本地模式还是演示模式</li>
+  <li><strong>统一请求函数：</strong><code>request(url, method, data)</code> 封装所有 HTTP 请求</li>
+  <li><strong>双模式实现：</strong>在同一个 <code>request()</code> 函数内，通过 <code>if(isProduction)</code> 分支切换模拟/真实请求</li>
+</ul>
+
+<div class="info-box warn">
+  <strong>⚠️ 重要发现：</strong>login.js 中演示模式的模拟逻辑包含了<strong>完整的业务规则</strong>——密码校验、验证码校验、手机号格式校验、用户存在性检查。这意味着演示模式不仅仅是"假数据"，而是一个<strong>功能完整的前端独立应用</strong>。
+</div>
+
+<h3>5.2 仪表盘主页 — <span class="tag tag-entry">index.html + app.js</span></h3>
+<p>这是一个<strong>工业级仪表盘界面</strong>，包含 8 大功能模块：</p>
+
+<div class="card-grid">
+  <div class="card">
+    <h4>🌐 3D 标签云</h4>
+    <p>纯 Canvas 2D + 3D 数学投影<br>
+    Fibonacci 球面分布<br>
+    鼠标拖拽旋转 + 点击跳转<br>
+    TagCloud3D 类 (ES6)</p>
+  </div>
+  <div class="card">
+    <h4>✨ 粒子背景</h4>
+    <p>Canvas 粒子系统<br>
+    50 个随机运动粒子<br>
+    requestAnimationFrame 循环<br>
+    ParticlesBackground 类</p>
+  </div>
+  <div class="card">
+    <h4>📊 Chart.js 图表</h4>
+    <p>4 个迷你趋势图 (折线)<br>
+    1 个温度趋势图 (折线)<br>
+    1 个设备状态图 (环形)<br>
+    1 个能耗分析图 (柱状)<br>
+    1 个温度预测图 (多线)</p>
+  </div>
+  <div class="card">
+    <h4>🔔 下拉菜单</h4>
+    <p>通知中心下拉<br>
+    用户菜单下拉<br>
+    点击外部关闭<br>
+    stopPropagation 防冒泡</p>
+  </div>
+  <div class="card">
+    <h4>📱 移动端适配</h4>
+    <p>侧边栏折叠切换<br>
+    响应式网格布局<br>
+    Tailwind 断点系统<br>
+    scrollbar-hide 美化</p>
+  </div>
+  <div class="card">
+    <h4>🔄 实时数据</h4>
+    <p>30 秒间隔更新<br>
+    模拟随机波动<br>
+    温度/设备率/能耗/告警<br>
+    预测数据刷新</p>
+  </div>
+  <div class="card">
+    <h4>🛡️ 权限控制</h4>
+    <p>admin 可见用户管理<br>
+    非 admin 隐藏菜单<br>
+    localStorage 持久化<br>
+    Token 过期自动跳转</p>
+  </div>
+  <div class="card">
+    <h4>👥 管理员面板</h4>
+    <p>用户列表表格<br>
+    删除用户（多重保护）<br>
+    演示模式 API 模拟<br>
+    刷新/返回导航</p>
+  </div>
+</div>
+
+<h3>5.3 前端技术要点</h3>
+<ul>
+  <li><strong>3D 数学：</strong>Y 轴旋转矩阵 + X 轴旋转矩阵 + 透视投影 (scale = 300/(300+z))</li>
+  <li><strong>排序渲染：</strong>按 z 深度排序标签，远的先画 → 画家算法</li>
+  <li><strong>Canvas 文本：</strong>动态字号 = max(12, floor(24 × scale))</li>
+  <li><strong>Fibonacci 球面分布：</strong>12 个标签均匀分布在球面上</li>
+  <li><strong>平滑动画：</strong>rotationY += 0.003 自转 + lerp 缓动跟随鼠标</li>
+  <li><strong>localStorage：</strong>登录状态持久化、演示模式注册用户存储</li>
+</ul>
+</section>
+
+<!-- ================================================================
+     SECTION 6: 请求生命周期
+     ================================================================ -->
+<section id="s6">
+<h2><span class="emoji">🔄</span> 六、请求生命周期完整追踪</h2>
+
+<h3>6.1 账号密码登录 — 完整流程</h3>
+<div class="flow-step"><div class="flow-num">1</div><div class="flow-body"><strong>用户输入</strong><p>在 login.html 的"账号登录"tab 中输入手机号 13546069966 和密码 123456</p></div></div>
+<div class="flow-step"><div class="flow-num">2</div><div class="flow-body"><strong>前端校验</strong><p>login.js → buildPayload() → 校验手机号格式 → 校验密码非空 → 构建 {loginType:3, phone:"13546069966", password:"123456"}</p></div></div>
+<div class="flow-step"><div class="flow-num">3</div><div class="flow-body"><strong>发送请求</strong><p>request('/api/login', 'POST', payload) → XHR → Content-Type: application/json</p></div></div>
+<div class="flow-step"><div class="flow-num">4</div><div class="flow-body"><strong>HTTP 服务器接收</strong><p>HttpServer.handleRequest() → path="/api/login", method="POST" → handleLogin()</p></div></div>
+<div class="flow-step"><div class="flow-num">5</div><div class="flow-body"><strong>解析请求体</strong><p>readRequestBody() → extractJsonField() 逐个提取字段 → 构建 LoginRequest 对象</p></div></div>
+<div class="flow-step"><div class="flow-num">6</div><div class="flow-body"><strong>参数校验</strong><p>LoginRequest.validate() → PASSWORD 分支 → ValidationUtil.isValidPhone() + 密码非空检查</p></div></div>
+<div class="flow-step"><div class="flow-num">7</div><div class="flow-body"><strong>业务处理</strong><p>LoginService.login() → handlePasswordLogin() → getUserByPhone("13546069966") → PUGE_USER_MAP.get() 找到用户 → password.equals(user.getPassword()) 校验通过</p></div></div>
+<div class="flow-step"><div class="flow-num">8</div><div class="flow-body"><strong>生成 Token</strong><p>generateLoginResponse() → UUID.randomUUID() 生成 accessToken + refreshToken → TOKEN_USER_MAP.put(token, userId)</p></div></div>
+<div class="flow-step"><div class="flow-num">9</div><div class="flow-body"><strong>返回响应</strong><p>LoginResponse.success(user, accessToken, refreshToken, 7200) → 构建包含 code/success/message/token/userInfo 的响应对象</p></div></div>
+<div class="flow-step"><div class="flow-num">10</div><div class="flow-body"><strong>序列化输出</strong><p>toJson(response) → 手动拼接 JSON 字符串 → writeResponse(200, jsonString) → HTTP 响应的 OutputStream</p></div></div>
+<div class="flow-step"><div class="flow-num">11</div><div class="flow-body"><strong>前端处理</strong><p>login.js → XHR onreadystatechange → JSON.parse(xhr.responseText) → 保存到 localStorage → 显示 Toast → 1.5 秒后跳转 index.html</p></div></div>
+
+<div class="info-box tip">
+  <strong>💡 追踪技巧：</strong>在 IDE 中，从 <code>dragonThermLogin.main()</code> 开始，通过调试器或 System.out.println 逐行追踪一个登录请求的完整路径，这是理解全栈流程的最佳方式。
+</div>
+</section>
+
+<!-- ================================================================
+     SECTION 7: 关键设计模式
+     ================================================================ -->
+<section id="s7">
+<h2><span class="emoji">🧩</span> 七、关键设计模式与架构决策</h2>
+
+<h3>7.1 项目中实际使用的设计模式</h3>
+<table>
+  <tr><th>设计模式</th><th>应用位置</th><th>说明</th></tr>
+  <tr>
+    <td><strong>单例模式</strong></td>
+    <td>LoginService, SmsCodeService</td>
+    <td>在 dragonThermLogin 中作为 static final 单例，HttpServer 中也类似</td>
+  </tr>
+  <tr>
+    <td><strong>策略模式</strong></td>
+    <td>LoginService.login() → switch(loginType)</td>
+    <td>根据登录类型分发到不同的处理策略 (Password/SMS/WeChat)</td>
+  </tr>
+  <tr>
+    <td><strong>静态工厂方法</strong></td>
+    <td>LoginResponse.success() / .fail()</td>
+    <td>封装对象创建逻辑，隐藏构造细节</td>
+  </tr>
+  <tr>
+    <td><strong>模板方法</strong></td>
+    <td>LoginRequest.validate()</td>
+    <td>定义校验骨架 → 按登录类型分发到子校验方法</td>
+  </tr>
+  <tr>
+    <td><strong>DTO 模式</strong></td>
+    <td>LoginRequest, RegisterRequest, LoginResponse</td>
+    <td>数据传输对象，分离请求/响应与业务实体</td>
+  </tr>
+  <tr>
+    <td><strong>Facade 模式</strong></td>
+    <td>dragonThermLogin 对外静态方法</td>
+    <td>对外隐藏内部 LoginService 的复杂性</td>
+  </tr>
+  <tr>
+    <td><strong>前端模块模式</strong></td>
+    <td>login.js 的 IIFE</td>
+    <td>闭包封装，避免全局作用域污染</td>
+  </tr>
+  <tr>
+    <td><strong>观察者模式</strong></td>
+    <td>addEventListener 遍布前端代码</td>
+    <td>DOM 事件监听是观察者模式的经典实现</td>
+  </tr>
+</table>
+
+<h3>7.2 为什么要"零依赖"？</h3>
+<div class="info-box">
+  <strong>设计哲学：</strong>这个项目刻意不使用 Spring Boot、Jackson、MyBatis 等框架。<br><br>
+  <strong>好处：</strong>
+  ① 零 JAR 包 — 编译快、启动快<br>
+  ② 理解底层 — 手写 JSON 解析让你知道框架在做什么<br>
+  ③ 部署简单 — 一个 main 方法就跑起来了<br>
+  ④ 学习价值 — 这是理解 Spring Boot 内部原理的绝佳对比材料
+</div>
+</section>
+
+<!-- ================================================================
+     SECTION 8: 数据存储
+     ================================================================ -->
+<section id="s8">
+<h2><span class="emoji">💾</span> 八、数据存储与模拟</h2>
+
+<h3>8.1 内存数据库设计</h3>
+<p>整个系统没有使用任何外部数据库，所有数据存储在 JVM 内存中。启动时通过静态代码块预置测试数据。</p>
+
+<h4>预置测试用户</h4>
+<table>
+  <tr><th>手机号</th><th>密码</th><th>昵称</th><th>角色</th><th>userId</th></tr>
+  <tr><td>13546069966</td><td>123456</td><td>火龙果用户一</td><td style="color:var(--accent)">admin</td><td>U001</td></tr>
+  <tr><td>13935193040</td><td>654321</td><td>火龙果用户二</td><td>user</td><td>U002</td></tr>
+  <tr><td>— (微信)</td><td>—</td><td>微信用户</td><td>user</td><td>W001</td></tr>
+</table>
+
+<h4>微信用户的特殊存储</h4>
+<p>微信用户在 <code>PUGE_USER_MAP</code> 中使用 <code>"WECHAT_" + openId</code> 作为 key，例如：<code>PUGE_USER_MAP.get("WECHAT_oABC123DEF456")</code>。这是一种简单的前缀命名空间设计。</p>
+
+<h3>8.2 数据生命周期</h3>
+<ul>
+  <li><strong>用户数据：</strong>从静态代码块创建 → 注册时新增 → 永不过期（除非手动删除）</li>
+  <li><strong>Token：</strong>登录/注册时生成 → 存入 TOKEN_USER_MAP → 理论上 2 小时过期（实际未强制清除）</li>
+  <li><strong>验证码：</strong>发送时创建 → 60 秒后过期 → 校验通过后删除 → 用过的立即清除</li>
+</ul>
+
+<div class="info-box warn">
+  <strong>⚠️ 生产环境注意：</strong>内存存储在服务器重启后会丢失所有数据。生产环境应替换为 MySQL/PostgreSQL + Redis。
+</div>
+</section>
+
+<!-- ================================================================
+     SECTION 9: 演示模式
+     ================================================================ -->
+<section id="s9">
+<h2><span class="emoji">🎭</span> 九、演示模式机制深度解析</h2>
+
+<p>这是项目中最巧妙的设计之一。演示模式允许将项目部署到 GitHub Pages（纯静态托管，无法运行 Java 后端），前端自动接管所有后端逻辑。</p>
+
+<h3>9.1 环境检测</h3>
+<pre><code>// 在 login.js 和 app.js 中都有这段代码
+var isProduction = window.location.hostname !== 'localhost'
+                && window.location.hostname !== '127.0.0.1';
+// GitHub Pages 的 hostname 是 xxx.github.io → isProduction = true → 演示模式</code></pre>
+
+<h3>9.2 演示模式数据流</h3>
+<div class="arch-diagram">
+  ┌─────────────────────────────────────────────────────────┐
+  │                    演示模式 (GitHub Pages)                │
+  │                                                         │
+  │  ┌──────────┐    request()     ┌──────────────────────┐ │
+  │  │ login.js │ ───────────────→ │ 模拟分支 (if isProduction) │
+  │  │ app.js   │                  │                      │ │
+  │  └──────────┘                  │ MOCK_USERS = {       │ │
+  │                                │   "13546069966": {...}│ │
+  │    ↑                           │ }                    │ │
+  │    │ 直接操作 JS 对象           │ MOCK_SMS_CODES = {}  │ │
+  │    │ (不经过网络)              │ setTimeout 模拟延迟  │ │
+  │    │                           └──────────────────────┘ │
+  │    │                                                    │
+  │    └────── 返回 Promise.resolve(mockResult)              │
+  │                                                         │
+  │  localStorage: 持久化演示模式下注册的新用户               │
+  │  dragon_therm_login → 登录状态                          │
+  │  dragon_therm_demo_users → 新注册用户列表               │
+  └─────────────────────────────────────────────────────────┘
+</div>
+
+<h3>9.3 本地模式 vs 演示模式对照</h3>
+<table>
+  <tr><th>特性</th><th>本地模式</th><th>演示模式</th></tr>
+  <tr><td>hostname</td><td>localhost / 127.0.0.1</td><td>github.io 等</td></tr>
+  <tr><td>后端</td><td>Java HttpServer 真实运行</td><td>无后端，前端模拟</td></tr>
+  <tr><td>数据持久化</td><td>Java ConcurrentHashMap</td><td>JavaScript 对象 + localStorage</td></tr>
+  <tr><td>验证码</td><td>Java SmsCodeService 生成</td><td>JS Math.random() 生成</td></tr>
+  <tr><td>管理员 API</td><td>真实 HTTP 接口 + Token 鉴权</td><td>JS 模拟 + localStorage 存储</td></tr>
+</table>
+</section>
+
+<!-- ================================================================
+     SECTION 10: 角色权限系统
+     ================================================================ -->
+<section id="s10">
+<h2><span class="emoji">🛡️</span> 十、角色权限系统</h2>
+
+<h3>10.1 角色定义</h3>
+<table>
+  <tr><th>角色</th><th>标识</th><th>权限</th></tr>
+  <tr><td>管理员</td><td><code>role = "admin"</code></td><td>查看所有用户、删除普通用户、访问用户管理面板</td></tr>
+  <tr><td>普通用户</td><td><code>role = "user"</code></td><td>登录、查看仪表盘、注册新账号默认为此角色</td></tr>
+</table>
+
+<h3>10.2 权限校验链路</h3>
+<div class="flow-step"><div class="flow-num">1</div><div class="flow-body"><strong>前端侧边栏控制</strong><p>app.js → 读取 localStorage 中的 loginData.userInfo.role → 非 admin 则隐藏"用户管理"菜单项 (display:none)</p></div></div>
+<div class="flow-step"><div class="flow-num">2</div><div class="flow-body"><strong>后端 Token 鉴权</strong><p>HttpServer.authenticateAdmin() → 从 Authorization 头提取 Bearer Token → TOKEN_USER_MAP 查找 userId → USER_ID_MAP 查找用户 → 检查 role == "admin"</p></div></div>
+<div class="flow-step"><div class="flow-num">3</div><div class="flow-body"><strong>删除保护（三层）</strong><p>① 不能删除自己 (adminUser.userId == targetUser.userId)<br>② 不能删除其他管理员 (targetUser.role == "admin")<br>③ 前端也做了对应的按钮禁用</p></div></div>
+
+<h3>10.3 前端权限控制的局限性</h3>
+<div class="info-box warn">
+  <strong>⚠️ 注意：</strong>前端的 <code>display:none</code> 只是 UI 层面的隐藏，不能替代后端鉴权。<br>
+  本项目在本地模式下，后端 <code>/api/admin/users</code> 接口有完整的 Token 鉴权 + 角色校验。<br>
+  但在演示模式下，前端模拟没有做严格的 token 校验——这是因为演示模式本身就是模拟。
+</div>
+</section>
+
+<!-- ================================================================
+     SECTION 11: 演进历史
+     ================================================================ -->
+<section id="s11">
+<h2><span class="emoji">📜</span> 十一、项目演进历史（Git Log 解读）</h2>
+
+<table>
+  <tr><th>Commit</th><th>类型</th><th>内容总结</th></tr>
+  <tr>
+    <td><code>ee2ab8d</code></td>
+    <td><span class="tag tag-core">feat</span></td>
+    <td><strong>火龙果智能温控系统 v1.0</strong> — 初始版本，包含完整的登录模块</td>
+  </tr>
+  <tr>
+    <td><code>982cd17</code></td>
+    <td><span class="tag tag-util">fix</span></td>
+    <td><strong>添加 GitHub Pages 首页跳转 + 演示模式登录</strong> — 引入双模式架构</td>
+  </tr>
+  <tr>
+    <td><code>4c83c58</code></td>
+    <td><span class="tag tag-util">fix</span></td>
+    <td><strong>修复 JSON.parse(data) 报错</strong> — data 已是对象无需 parse（演示模式 bug）</td>
+  </tr>
+  <tr>
+    <td><code>1df4eff</code></td>
+    <td><span class="tag tag-util">fix</span></td>
+    <td><strong>演示模式加入真实密码校验</strong> — 修复任意密码都能登录的安全漏洞</td>
+  </tr>
+  <tr>
+    <td><code>97bd30d</code></td>
+    <td><span class="tag tag-core">feat</span></td>
+    <td><strong>角色权限系统 + 注册功能</strong> — 引入 admin/user 双角色 + 注册页面</td>
+  </tr>
+  <tr>
+    <td><code>e339749</code></td>
+    <td><span class="tag tag-util">fix</span></td>
+    <td><strong>修复手机端注册 tab 不可用</strong> — 移动端兼容性修复</td>
+  </tr>
+</table>
+
+<div class="info-box tip">
+  <strong>💡 学习建议：</strong>用 <code>git diff ee2ab8d e339749</code> 查看从 v1.0 到最新版本的全部变更，理解一个功能是如何一步步完善和修复的。
+</div>
+</section>
+
+<!-- ================================================================
+     SECTION 12: 学习路线
+     ================================================================ -->
+<section id="s12">
+<h2><span class="emoji">🎯</span> 十二、推荐学习路线</h2>
+
+<p>以下是从零到吃透这个项目的建议路径，按难度递进排列：</p>
+
+<div class="card-grid">
+  <div class="card">
+    <h4>🔰 第一阶段：跑起来</h4>
+    <ol>
+      <li><code>mvn compile exec:java</code> 启动服务器</li>
+      <li>浏览器访问 localhost:8080</li>
+      <li>用测试账号 13546069966/123456 登录</li>
+      <li>浏览仪表盘，体验所有功能</li>
+    </ol>
+    <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">目标：建立感性认识</p>
+  </div>
+  <div class="card">
+    <h4>📖 第二阶段：读代码</h4>
+    <ol>
+      <li>从 README.md 了解项目结构</li>
+      <li>读 dragonThermLogin.java（入口）</li>
+      <li>读 HttpServer.java（路由分发）</li>
+      <li>读 LoginService.java（业务核心）</li>
+      <li>读 LoginRequest.java（参数校验）</li>
+    </ol>
+    <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">目标：理解后端架构</p>
+  </div>
+  <div class="card">
+    <h4>🔧 第三阶段：Debug</h4>
+    <ol>
+      <li>在 IDE 中设置断点</li>
+      <li>断在 handleLogin() 方法</li>
+      <li>发起一次登录请求</li>
+      <li>逐行追踪数据流转</li>
+      <li>理解 ConcurrentHashMap 的读写</li>
+    </ol>
+    <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">目标：理解数据流</p>
+  </div>
+  <div class="card">
+    <h4>🎨 第四阶段：前端</h4>
+    <ol>
+      <li>读 login.html 的结构</li>
+      <li>读 login.js 的 IIFE + 环境检测</li>
+      <li>理解 request() 的双模式分支</li>
+      <li>读 app.js 的 3D 标签云算法</li>
+      <li>读 Chart.js 的图表配置</li>
+    </ol>
+    <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">目标：理解前端架构</p>
+  </div>
+  <div class="card">
+    <h4>🧩 第五阶段：串联</h4>
+    <ol>
+      <li>画一张完整的请求流程图</li>
+      <li>对比本地模式 vs 演示模式</li>
+      <li>理解权限系统前后端配合</li>
+      <li>尝试添加一个新接口</li>
+      <li>尝试修改一个业务规则</li>
+    </ol>
+    <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">目标：全局掌控</p>
+  </div>
+  <div class="card">
+    <h4>🚀 第六阶段：扩展</h4>
+    <ol>
+      <li>将 ConcurrentHashMap 替换为 SQLite</li>
+      <li>用 Jackson 替换手写 JSON</li>
+      <li>实现真正的微信 OAuth 流程</li>
+      <li>添加单元测试 (JUnit)</li>
+      <li>用 Spring Boot 重写一遍</li>
+    </ol>
+    <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">目标：深度理解</p>
+  </div>
+</div>
+
+<h3>推荐阅读顺序（按文件）</h3>
+<ol>
+  <li><strong>README.md</strong> — 建立整体认知</li>
+  <li><strong>pom.xml</strong> — 理解项目配置</li>
+  <li><strong>dragonThermLogin.java</strong> — 入口点，理解启动逻辑</li>
+  <li><strong>PugeUser.java</strong> — 数据模型</li>
+  <li><strong>LoginRequest.java</strong> — 理解三种登录方式的参数差异</li>
+  <li><strong>LoginResponse.java</strong> — 理解响应结构</li>
+  <li><strong>ValidationUtil.java</strong> — 正则校验</li>
+  <li><strong>BusinessException.java</strong> — 异常设计</li>
+  <li><strong>SmsCodeService.java</strong> — 验证码生命周期</li>
+  <li><strong>LoginService.java</strong> ⭐ — 核心业务逻辑</li>
+  <li><strong>HttpServer.java</strong> ⭐ — HTTP 服务器 + 路由 + JSON 处理</li>
+  <li><strong>login.html + login.js</strong> — 前端登录页</li>
+  <li><strong>index.html + app.js</strong> — 仪表盘</li>
+</ol>
+</section>
+
+<!-- ================================================================
+     SECTION 13: 技术要点速查
+     ================================================================ -->
+<section id="s13">
+<h2><span class="emoji">📋</span> 十三、技术要点速查表</h2>
+
+<h3>13.1 Java 技术点</h3>
+<table>
+  <tr><th>知识点</th><th>应用位置</th><th>学习价值</th></tr>
+  <tr><td>ConcurrentHashMap</td><td>所有数据存储</td><td>线程安全的 Map，分段锁原理</td></tr>
+  <tr><td>static 静态代码块</td><td>LoginService 初始化数据</td><td>类加载时执行一次，适合初始化</td></tr>
+  <tr><td>UUID 生成</td><td>generateToken()</td><td>全局唯一 ID 生成</td></tr>
+  <tr><td>枚举 (enum)</td><td>LoginType</td><td>带 code/description 的复杂枚举</td></tr>
+  <tr><td>内部类</td><td>LoginResponse.UserInfo, SmsCodeInfo</td><td>封装关联数据</td></tr>
+  <tr><td>静态工厂方法</td><td>LoginResponse.success/fail</td><td>替代构造器的对象创建模式</td></tr>
+  <tr><td>正则表达式</td><td>ValidationUtil, extractJsonField</td><td>手机号/密码/JSON 字段提取</td></tr>
+  <tr><td>RuntimeException</td><td>BusinessException</td><td>非受检异常，业务异常处理</td></tr>
+  <tr><td>com.sun.net.httpserver</td><td>HttpServer</td><td>JDK 内置 HTTP 服务器</td></tr>
+  <tr><td>IO 流</td><td>文件读取/请求体读取</td><td>InputStream/OutputStream 基础</td></tr>
+</table>
+
+<h3>13.2 前端技术点</h3>
+<table>
+  <tr><th>知识点</th><th>应用位置</th><th>学习价值</th></tr>
+  <tr><td>IIFE</td><td>login.js 整体</td><td>模块化封装，避免全局污染</td></tr>
+  <tr><td>XMLHttpRequest</td><td>request() 函数</td><td>原生 AJAX（对比 fetch API）</td></tr>
+  <tr><td>Promise</td><td>request() 返回 Promise</td><td>异步编程核心</td></tr>
+  <tr><td>Canvas 2D</td><td>TagCloud3D, ParticlesBackground</td><td>图形编程基础</td></tr>
+  <tr><td>3D 数学投影</td><td>TagCloud3D.draw()</td><td>旋转矩阵 + 透视投影</td></tr>
+  <tr><td>Chart.js</td><td>8 个图表实例</td><td>数据可视化</td></tr>
+  <tr><td>localStorage</td><td>登录状态持久化</td><td>浏览器端存储</td></tr>
+  <tr><td>事件委托/冒泡</td><td>下拉菜单、表单提交</td><td>DOM 事件机制</td></tr>
+  <tr><td>Tailwind CSS</td><td>index.html</td><td>Utility-first CSS 框架</td></tr>
+  <tr><td>响应式设计</td><td>@media 查询、Tailwind 断点</td><td>移动端适配</td></tr>
+</table>
+
+<h3>13.3 架构思维</h3>
+<table>
+  <tr><th>概念</th><th>项目体现</th></tr>
+  <tr><td>分层架构</td><td>表示层(HTML) → 控制层(HttpServer) → 业务层(LoginService) → 数据层(Map)</td></tr>
+  <tr><td>DTO 模式</td><td>Request/Response 对象与 Entity 分离</td></tr>
+  <tr><td>参数校验链</td><td>前端校验 → DTO.validate() → 业务校验 → 数据库约束</td></tr>
+  <tr><td>双模式运行</td><td>同一套前端代码适配真实后端和纯前端模拟</td></tr>
+  <tr><td>零依赖哲学</td><td>用 JDK 内置 API 替代所有第三方框架</td></tr>
+  <tr><td>纵深防御</td><td>前端隐藏 + 后端鉴权 + 删除操作多重校验</td></tr>
+  <tr><td>优雅降级</td><td>演示模式在没有 Java 后端时仍可完整运行</td></tr>
+</table>
+</section>
+
+<hr style="border-color: var(--border); margin: 48px 0;">
+
+<div style="text-align: center; color: var(--text-muted); font-size: 13px;">
+  <p>📘 火龙果智能温控系统 — 项目完全解读指南</p>
+  <p>© 2026 Dragon Therm · 生成于 2026-08-04</p>
+  <p style="margin-top: 12px;">
+    下一步建议：用 <code>mvn compile exec:java</code> 启动项目，配合本指南逐模块阅读源码
+  </p>
+</div>
+
+  </main>
+</div>
+
+</body>
+</html>
