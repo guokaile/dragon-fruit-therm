@@ -115,11 +115,23 @@ class TagCloud3D {
 
     resize() {
         if (!this.canvas) return;
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-        this.centerX = this.canvas.width / 2;
-        this.centerY = this.canvas.height / 2;
-        this.radius = Math.min(this.canvas.width, this.canvas.height) / 3;
+        // 高清屏适配（按DPR缩放，保证Retina屏文字清晰）
+        const dpr = window.devicePixelRatio || 1;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        this.canvas.width = w * dpr;
+        this.canvas.height = h * dpr;
+        this.canvas.style.width = w + 'px';
+        this.canvas.style.height = h + 'px';
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this.centerX = w / 2;
+        this.centerY = h / 2;
+        const minDim = Math.min(w, h);
+        const isMobile = minDim < 768;
+        // 球体半径：移动端相对更大，让标签散开
+        this.radius = minDim / (isMobile ? 2.5 : 3);
+        // 基础字号随视口缩放：桌面端(最小边>=720)保持24px不变，移动端缩小避免标签挤成一团
+        this.baseFont = Math.min(24, Math.max(12, Math.round(24 * minDim / 720)));
     }
 
     createParticles() {
@@ -148,15 +160,24 @@ class TagCloud3D {
     bindEvents() {
         const self = this;
 
-        // 鼠标移动事件
+        // 鼠标移动事件（桌面端旋转）
         this.canvas.addEventListener('mousemove', (e) => {
-            const rect = self.canvas.getBoundingClientRect();
-            self.mouseX = e.clientX - rect.left;
-            self.mouseY = e.clientY - rect.top;
-            // 根据鼠标位置计算目标旋转角度
-            self.targetRotationY = (self.mouseX - self.centerX) / 500;
-            self.targetRotationX = (self.mouseY - self.centerY) / 500;
+            self.updateRotationFromPointer(e.clientX, e.clientY);
         });
+
+        // 触摸事件（移动端拖拽旋转）
+        this.canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                self.updateRotationFromPointer(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: true });
+        this.canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1) {
+                self.updateRotationFromPointer(e.touches[0].clientX, e.touches[0].clientY);
+            }
+            // 阻止触摸拖动时页面滚动
+            e.preventDefault();
+        }, { passive: false });
 
         // 点击事件
         this.canvas.addEventListener('click', (e) => {
@@ -205,6 +226,18 @@ class TagCloud3D {
         this.canvas.addEventListener('mouseup', () => {
             self.canvas.style.cursor = 'grab';
         });
+    }
+
+    /**
+     * 根据指针位置更新目标旋转角度（鼠标/触摸共用）
+     */
+    updateRotationFromPointer(clientX, clientY) {
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouseX = clientX - rect.left;
+        this.mouseY = clientY - rect.top;
+        // 根据指针位置计算目标旋转角度
+        this.targetRotationY = (this.mouseX - this.centerX) / 500;
+        this.targetRotationX = (this.mouseY - this.centerY) / 500;
     }
 
     handleTagClick(particle) {
@@ -284,7 +317,7 @@ class TagCloud3D {
         // 绘制标签
         for (const p of drawList) {
             const alpha = Math.max(0.2, Math.min(1, (p.screenZ + 1) * 0.7 + 0.3));
-            const fontSize = Math.max(12, Math.floor(24 * p.scale));
+            const fontSize = Math.max(12, Math.floor(this.baseFont * p.scale));
             p.radius = fontSize * 1.3;
             // 绘制圆形背景
             ctx.beginPath();
